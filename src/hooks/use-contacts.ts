@@ -181,3 +181,66 @@ export function useDeleteContact() {
     },
   });
 }
+
+export interface CreateContactInput {
+  display_name: string;
+  phone_number: string;
+  tags?: string[];
+  notes?: string;
+}
+
+export function useCreateContact() {
+  const queryClient = useQueryClient();
+  const { selectedAccountId } = useAccountStore();
+
+  return useMutation({
+    mutationFn: async (input: CreateContactInput) => {
+      // Get user's organization_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.organization_id) throw new Error('No organization found');
+
+      // Get whatsapp_account_id - use selected or get first one
+      let whatsappAccountId = selectedAccountId;
+      if (!whatsappAccountId) {
+        const { data: accounts } = await supabase
+          .from('whatsapp_accounts')
+          .select('id')
+          .eq('organization_id', profile.organization_id)
+          .limit(1);
+        
+        if (!accounts || accounts.length === 0) {
+          throw new Error('No WhatsApp account found. Please create one first.');
+        }
+        whatsappAccountId = accounts[0].id;
+      }
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert({
+          organization_id: profile.organization_id,
+          whatsapp_account_id: whatsappAccountId,
+          display_name: input.display_name || null,
+          phone_number: input.phone_number,
+          tags: input.tags && input.tags.length > 0 ? input.tags : null,
+          notes: input.notes || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Contact;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-tags'] });
+    },
+  });
+}
