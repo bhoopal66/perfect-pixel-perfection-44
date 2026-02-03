@@ -14,7 +14,15 @@ import { useActivityLogs, type ActivityAction, type ActivityLog } from '@/hooks/
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityLogFilters, type ActivityLogFiltersState } from './ActivityLogFilters';
-
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 // Helper to safely get details as a typed record
 function getDetails(log: ActivityLog): Record<string, string | number | boolean | null> {
   if (typeof log.details === 'object' && log.details !== null && !Array.isArray(log.details)) {
@@ -75,17 +83,24 @@ const ACTION_CONFIG: Record<ActivityAction, {
   },
 };
 
+const PAGE_SIZE = 10;
+
 export function ActivityLogList() {
-  const { data: logs, isLoading } = useActivityLogs();
+  const [currentPage, setCurrentPage] = useState(1);
+  const { data, isLoading } = useActivityLogs(currentPage, PAGE_SIZE);
   const [filters, setFilters] = useState<ActivityLogFiltersState>({
     actionType: 'all',
     startDate: undefined,
     endDate: undefined,
   });
 
-  // Filter logs based on selected filters
+  const logs = data?.logs || [];
+  const totalCount = data?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  // Filter logs based on selected filters (client-side filtering on current page)
   const filteredLogs = useMemo(() => {
-    if (!logs) return [];
+    if (!logs.length) return [];
     
     return logs.filter((log) => {
       // Filter by action type
@@ -115,23 +130,24 @@ export function ActivityLogList() {
     });
   }, [logs, filters]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-3 w-1/4" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 'ellipsis', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, 'ellipsis', totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, 'ellipsis', currentPage, 'ellipsis', totalPages);
+      }
+    }
+    return pages;
+  };
 
-  if (!logs || logs.length === 0) {
+  if (!logs.length && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <Activity className="h-12 w-12 mb-3 opacity-50" />
@@ -141,89 +157,141 @@ export function ActivityLogList() {
     );
   }
 
+
   return (
     <div>
       <ActivityLogFilters filters={filters} onFiltersChange={setFilters} />
       
-      {filteredLogs.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
           <Activity className="h-10 w-10 mb-2 opacity-50" />
           <p className="text-sm">No matching activity found</p>
           <p className="text-xs">Try adjusting your filters</p>
         </div>
       ) : (
-        <ScrollArea className="h-[350px] pr-4">
-          <div className="space-y-4">
-            {filteredLogs.map((log) => {
-              const config = ACTION_CONFIG[log.action as ActivityAction] || {
-                icon: Activity,
-            label: log.action,
-            color: 'text-muted-foreground'
-          };
-          const Icon = config.icon;
-          const performerName = log.performer?.full_name || log.performer?.email || 'Unknown';
-          const details = getDetails(log);
-          
-          // Build description
-          let description = '';
-          const targetName = (details.target_name as string) || log.target_email || 'a user';
-          
-          switch (log.action) {
-            case 'member_invited':
-              description = `invited ${targetName} as ${details.role || 'agent'}`;
-              break;
-            case 'invitation_cancelled':
-              description = `cancelled invitation for ${targetName}`;
-              break;
-            case 'member_added':
-              description = `added ${targetName} as ${details.role || 'agent'}`;
-              break;
-            case 'member_removed':
-              description = `removed ${targetName}`;
-              break;
-            case 'member_reactivated':
-              description = `reactivated ${targetName}`;
-              break;
-            case 'member_deleted':
-              description = `permanently deleted ${targetName}`;
-              break;
-            case 'role_changed':
-              description = `changed ${targetName}'s role to ${details.new_role || 'unknown'}`;
-              break;
-            case 'bulk_role_changed': {
-              const count = details.count || 0;
-              description = `changed role to ${details.new_role} for ${count} member${Number(count) > 1 ? 's' : ''}`;
-              break;
-            }
-            case 'bulk_removed': {
-              const removeCount = details.count || 0;
-              description = `removed ${removeCount} member${Number(removeCount) > 1 ? 's' : ''}`;
-              break;
-            }
-            default:
-              description = log.action;
-          }
+        <>
+          <ScrollArea className="h-[300px] pr-4">
+            <div className="space-y-4">
+              {filteredLogs.map((log) => {
+                const config = ACTION_CONFIG[log.action as ActivityAction] || {
+                  icon: Activity,
+                  label: log.action,
+                  color: 'text-muted-foreground'
+                };
+                const Icon = config.icon;
+                const performerName = log.performer?.full_name || log.performer?.email || 'Unknown';
+                const details = getDetails(log);
+                
+                // Build description
+                let description = '';
+                const targetName = (details.target_name as string) || log.target_email || 'a user';
+                
+                switch (log.action) {
+                  case 'member_invited':
+                    description = `invited ${targetName} as ${details.role || 'agent'}`;
+                    break;
+                  case 'invitation_cancelled':
+                    description = `cancelled invitation for ${targetName}`;
+                    break;
+                  case 'member_added':
+                    description = `added ${targetName} as ${details.role || 'agent'}`;
+                    break;
+                  case 'member_removed':
+                    description = `removed ${targetName}`;
+                    break;
+                  case 'member_reactivated':
+                    description = `reactivated ${targetName}`;
+                    break;
+                  case 'member_deleted':
+                    description = `permanently deleted ${targetName}`;
+                    break;
+                  case 'role_changed':
+                    description = `changed ${targetName}'s role to ${details.new_role || 'unknown'}`;
+                    break;
+                  case 'bulk_role_changed': {
+                    const count = details.count || 0;
+                    description = `changed role to ${details.new_role} for ${count} member${Number(count) > 1 ? 's' : ''}`;
+                    break;
+                  }
+                  case 'bulk_removed': {
+                    const removeCount = details.count || 0;
+                    description = `removed ${removeCount} member${Number(removeCount) > 1 ? 's' : ''}`;
+                    break;
+                  }
+                  default:
+                    description = log.action;
+                }
 
-          return (
-            <div key={log.id} className="flex items-start gap-3">
-              <div className={`p-2 rounded-full bg-muted ${config.color}`}>
-                <Icon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm">
-                  <span className="font-medium">{performerName}</span>
-                  {' '}
-                  <span className="text-muted-foreground">{description}</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                </p>
-              </div>
+                return (
+                  <div key={log.id} className="flex items-start gap-3">
+                    <div className={`p-2 rounded-full bg-muted ${config.color}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium">{performerName}</span>
+                        {' '}
+                        <span className="text-muted-foreground">{description}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-            })}
-          </div>
-        </ScrollArea>
+          </ScrollArea>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination className="mt-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+                
+                {getPageNumbers().map((page, idx) => (
+                  <PaginationItem key={idx}>
+                    {page === 'ellipsis' ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        onClick={() => setCurrentPage(page)}
+                        isActive={currentPage === page}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       )}
     </div>
   );

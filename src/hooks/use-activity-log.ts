@@ -56,20 +56,32 @@ export async function logActivity(
   }]);
 }
 
-export function useActivityLogs(limit = 50) {
+export function useActivityLogs(page = 1, pageSize = 10) {
   const { organization } = useAuthStore();
 
   return useQuery({
-    queryKey: ['activity-logs', organization?.id, limit],
+    queryKey: ['activity-logs', organization?.id, page, pageSize],
     queryFn: async () => {
-      if (!organization?.id) return [];
+      if (!organization?.id) return { logs: [], totalCount: 0 };
+
+      // Get total count for pagination
+      const { count, error: countError } = await supabase
+        .from('team_activity_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organization.id);
+
+      if (countError) throw countError;
+
+      // Get paginated logs
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
       const { data: logs, error } = await supabase
         .from('team_activity_logs')
         .select('*')
         .eq('organization_id', organization.id)
         .order('created_at', { ascending: false })
-        .limit(limit);
+        .range(from, to);
 
       if (error) throw error;
 
@@ -81,10 +93,15 @@ export function useActivityLogs(limit = 50) {
         .in('user_id', performerIds);
 
       // Combine logs with performer info
-      return logs.map(log => ({
+      const logsWithPerformers = logs.map(log => ({
         ...log,
         performer: performers?.find(p => p.user_id === log.performed_by),
       })) as ActivityLog[];
+
+      return {
+        logs: logsWithPerformers,
+        totalCount: count || 0,
+      };
     },
     enabled: !!organization?.id,
   });
