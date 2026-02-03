@@ -76,10 +76,12 @@ export type Database = {
           assigned_to: string | null
           contact_id: string
           created_at: string
+          deal_value: number | null
           id: string
           last_message_at: string | null
           last_message_preview: string | null
           organization_id: string
+          pipeline_stage: string | null
           priority: string | null
           status: string
           unread_count: number
@@ -90,10 +92,12 @@ export type Database = {
           assigned_to?: string | null
           contact_id: string
           created_at?: string
+          deal_value?: number | null
           id?: string
           last_message_at?: string | null
           last_message_preview?: string | null
           organization_id: string
+          pipeline_stage?: string | null
           priority?: string | null
           status?: string
           unread_count?: number
@@ -104,10 +108,12 @@ export type Database = {
           assigned_to?: string | null
           contact_id?: string
           created_at?: string
+          deal_value?: number | null
           id?: string
           last_message_at?: string | null
           last_message_preview?: string | null
           organization_id?: string
+          pipeline_stage?: string | null
           priority?: string | null
           status?: string
           unread_count?: number
