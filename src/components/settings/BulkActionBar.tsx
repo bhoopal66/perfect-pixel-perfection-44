@@ -26,12 +26,24 @@ interface BulkActionBarProps {
   selectedCount: number;
   selectedUserIds: string[];
   onClearSelection: () => void;
+  showRemoveDialog?: boolean;
+  onRemoveDialogChange?: (open: boolean) => void;
 }
 
-export function BulkActionBar({ selectedCount, selectedUserIds, onClearSelection }: BulkActionBarProps) {
-  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+export function BulkActionBar({ 
+  selectedCount, 
+  selectedUserIds, 
+  onClearSelection,
+  showRemoveDialog: externalShowRemoveDialog,
+  onRemoveDialogChange,
+}: BulkActionBarProps) {
+  const [internalShowRemoveDialog, setInternalShowRemoveDialog] = useState(false);
   const bulkUpdateRoles = useBulkUpdateRoles();
   const bulkRemove = useBulkRemoveMembers();
+
+  // Support both controlled and uncontrolled dialog state
+  const showRemoveDialog = externalShowRemoveDialog ?? internalShowRemoveDialog;
+  const setShowRemoveDialog = onRemoveDialogChange ?? setInternalShowRemoveDialog;
 
   const handleBulkRoleChange = (role: AppRole) => {
     bulkUpdateRoles.mutate(
