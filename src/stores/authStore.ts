@@ -60,9 +60,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError && profileError.code !== 'PGRST116') {
+      if (profileError) {
         console.error('Error fetching profile:', profileError);
         return;
       }
