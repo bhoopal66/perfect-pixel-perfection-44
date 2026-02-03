@@ -52,7 +52,9 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
   const [showPairingCode, setShowPairingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [expiryWarningShown, setExpiryWarningShown] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   
   const disconnectAccount = useDisconnectAccount();
@@ -116,6 +118,51 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
   useEffect(() => {
     setExpiryWarningShown(false);
   }, [account.connection_token]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    // Clear any existing interval
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+
+    // Only run countdown if code is visible and not expired
+    if (!showPairingCode || !account.connection_token_expires_at || isTokenExpired || account.is_connected) {
+      setCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const expiresAt = new Date(account.connection_token_expires_at!).getTime();
+      const now = Date.now();
+      const remaining = expiresAt - now;
+
+      if (remaining <= 0) {
+        setCountdown('Expired');
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+        }
+        return;
+      }
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    // Update immediately
+    updateCountdown();
+
+    // Update every second
+    countdownIntervalRef.current = setInterval(updateCountdown, 1000);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+    };
+  }, [showPairingCode, account.connection_token_expires_at, account.is_connected, isTokenExpired]);
 
   const handleDisconnect = async () => {
     try {
@@ -237,8 +284,18 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
               {!account.is_connected && account.connection_token && !isTokenExpired && showPairingCode && (
                 <div className="mt-3 p-3 bg-secondary/50 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Pairing Code</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">Pairing Code</p>
+                        {countdown && (
+                          <Badge 
+                            variant={countdown === 'Expired' ? 'destructive' : 'secondary'}
+                            className="text-xs font-mono"
+                          >
+                            {countdown === 'Expired' ? 'Expired' : `Expires in ${countdown}`}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-lg font-mono font-bold tracking-wider">
                         {account.connection_token}
                       </p>
