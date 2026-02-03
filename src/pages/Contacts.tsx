@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { ContactList } from '@/components/contacts/ContactList';
 import { ContactDetail } from '@/components/contacts/ContactDetail';
@@ -6,11 +7,13 @@ import { Contact } from '@/hooks/use-contacts';
 
 export default function Contacts() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const navigate = useNavigate();
 
   const handleStartConversation = () => {
-    // Navigate to conversations with this contact
-    // For now, just show a message - this can be enhanced later
-    console.log('Start conversation with:', selectedContact?.phone_number);
+    if (selectedContact) {
+      // Navigate to conversations with this contact's ID
+      navigate(`/dashboard/conversations?contact=${selectedContact.id}`);
+    }
   };
 
   return (
