@@ -5,9 +5,14 @@ import { toast } from 'sonner';
 import type { Tables, Enums } from '@/integrations/supabase/types';
 
 type TeamInvitation = Tables<'team_invitations'>;
-type Profile = Tables<'profiles'>;
-type UserRole = Tables<'user_roles'>;
 type AppRole = Enums<'app_role'>;
+
+export interface AvailableUser {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
 
 export interface TeamMember {
   id: string;
@@ -209,4 +214,45 @@ export function useRemoveMember() {
 export function generateInviteLink(token: string): string {
   const baseUrl = window.location.origin;
   return `${baseUrl}/signup?invite=${token}`;
+}
+
+export function useSearchUsers(searchEmail: string) {
+  return useQuery({
+    queryKey: ['search-users', searchEmail],
+    queryFn: async () => {
+      if (!searchEmail || searchEmail.length < 2) return [];
+
+      const { data, error } = await supabase.rpc('search_available_users', {
+        search_email: searchEmail,
+      });
+
+      if (error) throw error;
+      return data as AvailableUser[];
+    },
+    enabled: searchEmail.length >= 2,
+  });
+}
+
+export function useAddUserToOrganization() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
+      const { data, error } = await supabase.rpc('add_user_to_organization', {
+        target_user_id: userId,
+        assigned_role: role,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['search-users'] });
+      toast.success('User added to your team!');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to add user');
+    },
+  });
 }
