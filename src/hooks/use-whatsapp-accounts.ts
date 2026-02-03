@@ -183,17 +183,25 @@ export function useUpdateWhatsAppAccount() {
       accountId,
       accountName,
       displayName,
+      profilePictureUrl,
     }: {
       accountId: string;
       accountName: string;
       displayName: string | null;
+      profilePictureUrl?: string | null;
     }) => {
+      const updateData: Record<string, unknown> = {
+        account_name: accountName,
+        display_name: displayName,
+      };
+      
+      if (profilePictureUrl !== undefined) {
+        updateData.profile_picture_url = profilePictureUrl;
+      }
+
       const { data, error } = await supabase
         .from('whatsapp_accounts')
-        .update({
-          account_name: accountName,
-          display_name: displayName,
-        })
+        .update(updateData)
         .eq('id', accountId)
         .select()
         .single();
@@ -204,6 +212,36 @@ export function useUpdateWhatsAppAccount() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['assigned-accounts'] });
+    },
+  });
+}
+
+// Upload profile picture
+export function useUploadProfilePicture() {
+  return useMutation({
+    mutationFn: async ({
+      organizationId,
+      accountId,
+      file,
+    }: {
+      organizationId: string;
+      accountId: string;
+      file: File;
+    }) => {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${organizationId}/${accountId}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('whatsapp-profile-pictures')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('whatsapp-profile-pictures')
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
     },
   });
 }
