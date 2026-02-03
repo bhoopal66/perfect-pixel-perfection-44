@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, MessageCircle, Bell } from 'lucide-react';
+import { User, MessageCircle, Bell, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WhatsAppAccountsTab } from '@/components/settings/WhatsAppAccountsTab';
+import { TeamMembersTab } from '@/components/settings/TeamMembersTab';
 
 export default function Settings() {
   const { profile, organization } = useAuthStore();
@@ -34,6 +35,10 @@ export default function Settings() {
               <MessageCircle className="w-4 h-4" />
               WhatsApp Accounts
             </TabsTrigger>
+            <TabsTrigger value="team" className="gap-2">
+              <Users className="w-4 h-4" />
+              Team
+            </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profile
@@ -44,9 +49,13 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
-          {/* WhatsApp Accounts Tab */}
           <TabsContent value="accounts" className="space-y-6">
             <WhatsAppAccountsTab />
+          </TabsContent>
+
+          {/* Team Tab */}
+          <TabsContent value="team" className="space-y-6">
+            <TeamMembersTab />
           </TabsContent>
 
           {/* Profile Tab */}
