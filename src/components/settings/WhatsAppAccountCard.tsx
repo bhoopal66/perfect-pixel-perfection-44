@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   MessageCircle,
@@ -10,6 +10,7 @@ import {
   Copy,
   CheckCircle,
   Pencil,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,8 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPairingCode, setShowPairingCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [expiryWarningShown, setExpiryWarningShown] = useState(false);
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   
   const disconnectAccount = useDisconnectAccount();
@@ -59,6 +62,60 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
   const isTokenExpired = account.connection_token_expires_at
     ? new Date(account.connection_token_expires_at) < new Date()
     : true;
+
+  // Set up expiry warning timer
+  useEffect(() => {
+    // Clear any existing timeout
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+      warningTimeoutRef.current = null;
+    }
+
+    // Only set up warning if code is visible and not expired
+    if (!showPairingCode || !account.connection_token_expires_at || isTokenExpired || account.is_connected) {
+      setExpiryWarningShown(false);
+      return;
+    }
+
+    const expiresAt = new Date(account.connection_token_expires_at).getTime();
+    const now = Date.now();
+    const oneMinuteBeforeExpiry = expiresAt - 60 * 1000; // 1 minute before
+    const timeUntilWarning = oneMinuteBeforeExpiry - now;
+
+    // If less than 1 minute remaining, show warning immediately
+    if (timeUntilWarning <= 0 && !expiryWarningShown) {
+      setExpiryWarningShown(true);
+      toast({
+        title: 'Pairing code expiring soon',
+        description: `The pairing code for "${account.account_name}" will expire in less than 1 minute. Generate a new code if needed.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Set timeout for 1-minute warning
+    if (timeUntilWarning > 0 && !expiryWarningShown) {
+      warningTimeoutRef.current = setTimeout(() => {
+        setExpiryWarningShown(true);
+        toast({
+          title: 'Pairing code expiring soon',
+          description: `The pairing code for "${account.account_name}" will expire in 1 minute. Generate a new code if needed.`,
+          variant: 'destructive',
+        });
+      }, timeUntilWarning);
+    }
+
+    return () => {
+      if (warningTimeoutRef.current) {
+        clearTimeout(warningTimeoutRef.current);
+      }
+    };
+  }, [showPairingCode, account.connection_token_expires_at, account.account_name, account.is_connected, isTokenExpired, expiryWarningShown, toast]);
+
+  // Reset warning shown flag when code is regenerated
+  useEffect(() => {
+    setExpiryWarningShown(false);
+  }, [account.connection_token]);
 
   const handleDisconnect = async () => {
     try {
