@@ -82,6 +82,41 @@ export type Database = {
           },
         ]
       }
+      user_account_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          is_primary: boolean
+          user_id: string
+          whatsapp_account_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          is_primary?: boolean
+          user_id: string
+          whatsapp_account_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          is_primary?: boolean
+          user_id?: string
+          whatsapp_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_account_assignments_whatsapp_account_id_fkey"
+            columns: ["whatsapp_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -102,6 +137,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_accounts: {
+        Row: {
+          account_name: string
+          connection_token: string | null
+          connection_token_expires_at: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          is_connected: boolean
+          last_sync_at: string | null
+          organization_id: string
+          phone_number: string | null
+          profile_picture_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          connection_token?: string | null
+          connection_token_expires_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          organization_id: string
+          phone_number?: string | null
+          profile_picture_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          connection_token?: string | null
+          connection_token_expires_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          organization_id?: string
+          phone_number?: string | null
+          profile_picture_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
