@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Plus, TrendingUp, DollarSign, Target, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineColumn } from '@/components/pipeline/PipelineColumn';
+import { CreateDealDialog } from '@/components/pipeline/CreateDealDialog';
 import {
   usePipelineConversations,
   usePipelineStats,
@@ -56,10 +56,7 @@ export default function Pipeline() {
             <h1 className="text-2xl font-bold">Pipeline</h1>
             <p className="text-muted-foreground">Track your deals through the sales funnel</p>
           </div>
-          <Button className="gap-2" onClick={() => navigate('/dashboard/conversations')}>
-            <Plus className="w-4 h-4" />
-            New Conversation
-          </Button>
+          <CreateDealDialog />
         </div>
 
         {/* Pipeline Stats */}

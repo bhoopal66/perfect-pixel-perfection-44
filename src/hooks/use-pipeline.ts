@@ -129,6 +129,89 @@ export function useUpdatePipelineStage() {
   });
 }
 
+export interface CreateDealInput {
+  contactId: string;
+  dealValue: number;
+  pipelineStage: string;
+  priority?: string;
+}
+
+export function useCreateDeal() {
+  const queryClient = useQueryClient();
+  const { selectedAccountId } = useAccountStore();
+
+  return useMutation({
+    mutationFn: async (input: CreateDealInput) => {
+      // Get user's organization_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.organization_id) throw new Error('No organization found');
+
+      // Get the contact to get its whatsapp_account_id
+      const { data: contact, error: contactError } = await supabase
+        .from('contacts')
+        .select('whatsapp_account_id')
+        .eq('id', input.contactId)
+        .single();
+
+      if (contactError || !contact) throw new Error('Contact not found');
+
+      // Check if a conversation already exists for this contact
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('contact_id', input.contactId)
+        .maybeSingle();
+
+      if (existingConv) {
+        // Update the existing conversation with deal info
+        const { data, error } = await supabase
+          .from('conversations')
+          .update({
+            deal_value: input.dealValue,
+            pipeline_stage: input.pipelineStage,
+            priority: input.priority || 'normal',
+          })
+          .eq('id', existingConv.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      // Create new conversation as a deal
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert({
+          organization_id: profile.organization_id,
+          whatsapp_account_id: contact.whatsapp_account_id,
+          contact_id: input.contactId,
+          deal_value: input.dealValue,
+          pipeline_stage: input.pipelineStage,
+          priority: input.priority || 'normal',
+          status: 'open',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
 export function usePipelineStats() {
   const { data: conversations } = usePipelineConversations();
 
