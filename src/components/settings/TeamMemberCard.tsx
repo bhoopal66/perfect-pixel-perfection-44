@@ -3,6 +3,7 @@ import { MoreVertical, Shield, ShieldAlert, User, UserX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,9 @@ type AppRole = Enums<'app_role'>;
 
 interface TeamMemberCardProps {
   member: TeamMember;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (userId: string, selected: boolean) => void;
 }
 
 const ROLE_CONFIG: Record<AppRole, { label: string; variant: 'default' | 'secondary' | 'outline'; icon: typeof Shield }> = {
@@ -36,7 +40,7 @@ const ROLE_CONFIG: Record<AppRole, { label: string; variant: 'default' | 'second
   agent: { label: 'Agent', variant: 'outline', icon: User },
 };
 
-export function TeamMemberCard({ member }: TeamMemberCardProps) {
+export function TeamMemberCard({ member, selectionMode, isSelected, onSelectionChange }: TeamMemberCardProps) {
   const { user } = useAuthStore();
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   
@@ -64,10 +68,26 @@ export function TeamMemberCard({ member }: TeamMemberCardProps) {
     setShowRemoveDialog(false);
   };
 
+  const canSelect = selectionMode && !isCurrentUser;
+
   return (
     <>
-      <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors">
+      <div 
+        className={`flex items-center justify-between p-4 border rounded-lg bg-card transition-colors ${
+          isSelected ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
+        } ${canSelect ? 'cursor-pointer' : ''}`}
+        onClick={() => canSelect && onSelectionChange?.(member.user_id, !isSelected)}
+      >
         <div className="flex items-center gap-3">
+          {selectionMode && (
+            <Checkbox
+              checked={isSelected}
+              disabled={isCurrentUser}
+              onCheckedChange={(checked) => onSelectionChange?.(member.user_id, !!checked)}
+              onClick={(e) => e.stopPropagation()}
+              className={isCurrentUser ? 'opacity-30' : ''}
+            />
+          )}
           <Avatar className="h-10 w-10">
             <AvatarImage src={member.avatar_url || undefined} />
             <AvatarFallback className="bg-primary/10 text-primary">

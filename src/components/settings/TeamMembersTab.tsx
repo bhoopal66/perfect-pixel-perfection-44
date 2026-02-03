@@ -1,16 +1,23 @@
-import { useState, useMemo } from 'react';
-import { Users, UserPlus, UserX, Loader2, Search } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Users, UserPlus, UserX, Loader2, Search, CheckSquare } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useTeamMembers, useTeamInvitations, useDeactivatedMembers } from '@/hooks/use-team-management';
 import { InviteTeamMemberDialog } from './InviteTeamMemberDialog';
 import { AddExistingUserDialog } from './AddExistingUserDialog';
 import { TeamMemberCard } from './TeamMemberCard';
 import { PendingInvitationCard } from './PendingInvitationCard';
 import { DeactivatedMemberCard } from './DeactivatedMemberCard';
+import { BulkActionBar } from './BulkActionBar';
+import { useAuthStore } from '@/stores/authStore';
 
 export function TeamMembersTab() {
+  const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  
   const { data: members, isLoading: membersLoading } = useTeamMembers();
   const { data: invitations, isLoading: invitationsLoading } = useTeamInvitations();
   const { data: deactivatedMembers, isLoading: deactivatedLoading } = useDeactivatedMembers();
@@ -37,6 +44,34 @@ export function TeamMembersTab() {
     );
   }, [deactivatedMembers, searchQuery]);
 
+  const handleSelectionChange = useCallback((userId: string, selected: boolean) => {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(userId);
+      } else {
+        next.delete(userId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedUserIds(new Set());
+    setSelectionMode(false);
+  }, []);
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      handleClearSelection();
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  // Count selectable members (excluding current user)
+  const selectableCount = filteredMembers?.filter((m) => m.user_id !== user?.id).length || 0;
+
   return (
     <div className="space-y-6">
       {/* Header with invite button */}
@@ -48,6 +83,16 @@ export function TeamMembersTab() {
           </p>
         </div>
         <div className="flex gap-2">
+          {members && members.length > 1 && (
+            <Button
+              variant={selectionMode ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={toggleSelectionMode}
+            >
+              <CheckSquare className="w-4 h-4 mr-1" />
+              {selectionMode ? 'Cancel' : 'Select'}
+            </Button>
+          )}
           <AddExistingUserDialog />
           <InviteTeamMemberDialog />
         </div>
@@ -105,7 +150,13 @@ export function TeamMembersTab() {
           ) : filteredMembers && filteredMembers.length > 0 ? (
             <div className="space-y-3">
               {filteredMembers.map((member) => (
-                <TeamMemberCard key={member.id} member={member} />
+                <TeamMemberCard
+                  key={member.id}
+                  member={member}
+                  selectionMode={selectionMode}
+                  isSelected={selectedUserIds.has(member.user_id)}
+                  onSelectionChange={handleSelectionChange}
+                />
               ))}
             </div>
           ) : searchQuery ? (
@@ -142,6 +193,13 @@ export function TeamMembersTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedUserIds.size}
+        selectedUserIds={Array.from(selectedUserIds)}
+        onClearSelection={handleClearSelection}
+      />
     </div>
   );
 }
