@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 import type { Tables, Enums } from '@/integrations/supabase/types';
+import { logActivity } from '@/hooks/use-activity-log';
 
 type TeamInvitation = Tables<'team_invitations'>;
 type AppRole = Enums<'app_role'>;
@@ -122,8 +123,10 @@ export function useCreateInvitation() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      logActivity('member_invited', null, data.email, { role: data.role });
       queryClient.invalidateQueries({ queryKey: ['team-invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Invitation created! Copy the link to share.');
     },
     onError: (error) => {
@@ -136,16 +139,19 @@ export function useCancelInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (invitationId: string) => {
+    mutationFn: async (invitation: { id: string; email: string }) => {
       const { error } = await supabase
         .from('team_invitations')
         .update({ status: 'cancelled' })
-        .eq('id', invitationId);
+        .eq('id', invitation.id);
 
       if (error) throw error;
+      return invitation;
     },
-    onSuccess: () => {
+    onSuccess: (invitation) => {
+      logActivity('invitation_cancelled', null, invitation.email);
       queryClient.invalidateQueries({ queryKey: ['team-invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Invitation cancelled');
     },
     onError: () => {
@@ -158,7 +164,7 @@ export function useUpdateMemberRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
+    mutationFn: async ({ userId, role, targetEmail, targetName }: { userId: string; role: AppRole; targetEmail?: string; targetName?: string }) => {
       // First check if user already has a role entry
       const { data: existingRole } = await supabase
         .from('user_roles')
@@ -177,9 +183,13 @@ export function useUpdateMemberRole() {
         .insert({ user_id: userId, role });
 
       if (error) throw error;
+      
+      return { userId, role, targetEmail, targetName };
     },
-    onSuccess: () => {
+    onSuccess: ({ userId, role, targetEmail, targetName }) => {
+      logActivity('role_changed', userId, targetEmail, { new_role: role, target_name: targetName });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Role updated');
     },
     onError: () => {
@@ -192,7 +202,7 @@ export function useRemoveMember() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ userId, targetEmail, targetName }: { userId: string; targetEmail?: string; targetName?: string }) => {
       // Deactivate the profile instead of deleting (keep organization_id for reactivation)
       const { error } = await supabase
         .from('profiles')
@@ -200,10 +210,13 @@ export function useRemoveMember() {
         .eq('user_id', userId);
 
       if (error) throw error;
+      return { userId, targetEmail, targetName };
     },
-    onSuccess: () => {
+    onSuccess: ({ userId, targetEmail, targetName }) => {
+      logActivity('member_removed', userId, targetEmail, { target_name: targetName });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Team member removed');
     },
     onError: () => {
@@ -223,10 +236,13 @@ export function useBulkRemoveMembers() {
         .in('user_id', userIds);
 
       if (error) throw error;
+      return userIds;
     },
-    onSuccess: (_, userIds) => {
+    onSuccess: (userIds) => {
+      logActivity('bulk_removed', null, null, { count: userIds.length });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success(`${userIds.length} team member${userIds.length > 1 ? 's' : ''} removed`);
     },
     onError: () => {
@@ -252,9 +268,12 @@ export function useBulkUpdateRoles() {
         .insert(userIds.map((userId) => ({ user_id: userId, role })));
 
       if (error) throw error;
+      return { userIds, role };
     },
-    onSuccess: (_, { userIds, role }) => {
+    onSuccess: ({ userIds, role }) => {
+      logActivity('bulk_role_changed', null, null, { count: userIds.length, new_role: role });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success(`Updated role to ${role} for ${userIds.length} member${userIds.length > 1 ? 's' : ''}`);
     },
     onError: () => {
@@ -315,17 +334,20 @@ export function useReactivateMember() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ userId, targetEmail, targetName }: { userId: string; targetEmail?: string; targetName?: string }) => {
       const { error } = await supabase
         .from('profiles')
         .update({ is_active: true })
         .eq('user_id', userId);
 
       if (error) throw error;
+      return { userId, targetEmail, targetName };
     },
-    onSuccess: () => {
+    onSuccess: ({ userId, targetEmail, targetName }) => {
+      logActivity('member_reactivated', userId, targetEmail, { target_name: targetName });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Team member reactivated');
     },
     onError: () => {
@@ -338,7 +360,7 @@ export function usePermanentlyDeleteMember() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({ userId, targetEmail, targetName }: { userId: string; targetEmail?: string; targetName?: string }) => {
       // First delete user roles
       await supabase
         .from('user_roles')
@@ -352,10 +374,13 @@ export function usePermanentlyDeleteMember() {
         .eq('user_id', userId);
 
       if (error) throw error;
+      return { userId, targetEmail, targetName };
     },
-    onSuccess: () => {
+    onSuccess: ({ userId, targetEmail, targetName }) => {
+      logActivity('member_deleted', userId, targetEmail, { target_name: targetName });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('Team member permanently removed from organization');
     },
     onError: () => {
@@ -399,9 +424,11 @@ export function useAddUserToOrganization() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, { userId, role }) => {
+      logActivity('member_added', userId, null, { role });
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       queryClient.invalidateQueries({ queryKey: ['search-users'] });
+      queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
       toast.success('User added to your team!');
     },
     onError: (error) => {
