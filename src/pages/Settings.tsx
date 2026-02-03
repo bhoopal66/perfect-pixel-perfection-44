@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, MessageCircle, Bell, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,10 +10,19 @@ import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WhatsAppAccountsTab } from '@/components/settings/WhatsAppAccountsTab';
 import { TeamMembersTab } from '@/components/settings/TeamMembersTab';
+import { useUserRole } from '@/hooks/use-user-role';
 
 export default function Settings() {
   const { profile, organization } = useAuthStore();
+  const { isAdmin, isLoading: isRoleLoading } = useUserRole();
   const [activeTab, setActiveTab] = useState('accounts');
+
+  // Reset to accounts tab if user loses admin access while on team tab
+  useEffect(() => {
+    if (!isRoleLoading && !isAdmin && activeTab === 'team') {
+      setActiveTab('accounts');
+    }
+  }, [isAdmin, isRoleLoading, activeTab]);
 
   const initials = profile?.full_name
     ?.split(' ')
@@ -35,10 +44,12 @@ export default function Settings() {
               <MessageCircle className="w-4 h-4" />
               WhatsApp Accounts
             </TabsTrigger>
-            <TabsTrigger value="team" className="gap-2">
-              <Users className="w-4 h-4" />
-              Team
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="team" className="gap-2">
+                <Users className="w-4 h-4" />
+                Team
+              </TabsTrigger>
+            )}
             <TabsTrigger value="profile" className="gap-2">
               <User className="w-4 h-4" />
               Profile
@@ -53,10 +64,12 @@ export default function Settings() {
             <WhatsAppAccountsTab />
           </TabsContent>
 
-          {/* Team Tab */}
-          <TabsContent value="team" className="space-y-6">
-            <TeamMembersTab />
-          </TabsContent>
+          {/* Team Tab - Admin only */}
+          {isAdmin && (
+            <TabsContent value="team" className="space-y-6">
+              <TeamMembersTab />
+            </TabsContent>
+          )}
 
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-6">
