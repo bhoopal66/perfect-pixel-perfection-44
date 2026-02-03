@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, Shield, ShieldAlert, User } from 'lucide-react';
+import { RefreshCw, Shield, ShieldAlert, Trash2, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useReactivateMember, type TeamMember } from '@/hooks/use-team-management';
+import { useReactivateMember, usePermanentlyDeleteMember, type TeamMember } from '@/hooks/use-team-management';
 import type { Enums } from '@/integrations/supabase/types';
 
 type AppRole = Enums<'app_role'>;
@@ -30,7 +30,9 @@ const ROLE_CONFIG: Record<AppRole, { label: string; variant: 'default' | 'second
 
 export function DeactivatedMemberCard({ member }: DeactivatedMemberCardProps) {
   const [showReactivateDialog, setShowReactivateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const reactivateMember = useReactivateMember();
+  const permanentlyDeleteMember = usePermanentlyDeleteMember();
 
   const config = ROLE_CONFIG[member.role];
   const Icon = config.icon;
@@ -44,6 +46,11 @@ export function DeactivatedMemberCard({ member }: DeactivatedMemberCardProps) {
   const handleReactivate = () => {
     reactivateMember.mutate(member.user_id);
     setShowReactivateDialog(false);
+  };
+
+  const handlePermanentDelete = () => {
+    permanentlyDeleteMember.mutate(member.user_id);
+    setShowDeleteDialog(false);
   };
 
   return (
@@ -82,6 +89,16 @@ export function DeactivatedMemberCard({ member }: DeactivatedMemberCardProps) {
             <RefreshCw className="w-3 h-3" />
             Reactivate
           </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowDeleteDialog(true)}
+            className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-3 h-3" />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -98,6 +115,31 @@ export function DeactivatedMemberCard({ member }: DeactivatedMemberCardProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReactivate}>
               Reactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete Team Member</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                Are you sure you want to permanently remove {member.full_name || member.email} from your organization?
+              </span>
+              <span className="block font-medium text-destructive">
+                This action cannot be undone. The user will lose all association with your organization and would need to be re-invited to rejoin.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handlePermanentDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Permanently Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
