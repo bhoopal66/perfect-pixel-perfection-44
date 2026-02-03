@@ -1,14 +1,16 @@
-import { Users, UserPlus, Loader2 } from 'lucide-react';
+import { Users, UserPlus, UserX, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useTeamMembers, useTeamInvitations } from '@/hooks/use-team-management';
+import { useTeamMembers, useTeamInvitations, useDeactivatedMembers } from '@/hooks/use-team-management';
 import { InviteTeamMemberDialog } from './InviteTeamMemberDialog';
 import { AddExistingUserDialog } from './AddExistingUserDialog';
 import { TeamMemberCard } from './TeamMemberCard';
 import { PendingInvitationCard } from './PendingInvitationCard';
+import { DeactivatedMemberCard } from './DeactivatedMemberCard';
 
 export function TeamMembersTab() {
   const { data: members, isLoading: membersLoading } = useTeamMembers();
   const { data: invitations, isLoading: invitationsLoading } = useTeamInvitations();
+  const { data: deactivatedMembers, isLoading: deactivatedLoading } = useDeactivatedMembers();
 
   const isLoading = membersLoading || invitationsLoading;
 
@@ -79,6 +81,26 @@ export function TeamMembersTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Deactivated Members */}
+      {!deactivatedLoading && deactivatedMembers && deactivatedMembers.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserX className="w-4 h-4" />
+              Removed Members ({deactivatedMembers.length})
+            </CardTitle>
+            <CardDescription>
+              Previously removed team members who can be reactivated
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {deactivatedMembers.map((member) => (
+              <DeactivatedMemberCard key={member.id} member={member} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
