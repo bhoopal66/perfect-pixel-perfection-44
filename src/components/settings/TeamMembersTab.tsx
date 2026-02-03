@@ -2,6 +2,7 @@ import { Users, UserPlus, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTeamMembers, useTeamInvitations } from '@/hooks/use-team-management';
 import { InviteTeamMemberDialog } from './InviteTeamMemberDialog';
+import { AddExistingUserDialog } from './AddExistingUserDialog';
 import { TeamMemberCard } from './TeamMemberCard';
 import { PendingInvitationCard } from './PendingInvitationCard';
 
@@ -14,14 +15,17 @@ export function TeamMembersTab() {
   return (
     <div className="space-y-6">
       {/* Header with invite button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">Team Members</h2>
           <p className="text-sm text-muted-foreground">
             Manage your team and their access levels
           </p>
         </div>
-        <InviteTeamMemberDialog />
+        <div className="flex gap-2">
+          <AddExistingUserDialog />
+          <InviteTeamMemberDialog />
+        </div>
       </div>
 
       {/* Pending Invitations */}

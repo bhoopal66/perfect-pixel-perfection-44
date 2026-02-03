@@ -426,6 +426,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_user_to_organization: {
+        Args: {
+          assigned_role?: Database["public"]["Enums"]["app_role"]
+          target_user_id: string
+        }
+        Returns: boolean
+      }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -433,6 +440,15 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      search_available_users: {
+        Args: { search_email: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          user_id: string
+        }[]
       }
     }
     Enums: {
