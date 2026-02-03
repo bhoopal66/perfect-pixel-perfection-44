@@ -29,11 +29,12 @@ export interface PipelineConversation {
 
 export const PIPELINE_STAGES = [
   { id: 'new_lead', name: 'New Lead', color: 'bg-blue-500' },
-  { id: 'qualified', name: 'Qualified', color: 'bg-yellow-500' },
-  { id: 'proposal', name: 'Proposal', color: 'bg-purple-500' },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-orange-500' },
-  { id: 'closed_won', name: 'Closed Won', color: 'bg-emerald-500' },
-  { id: 'closed_lost', name: 'Closed Lost', color: 'bg-destructive' },
+  { id: 'collect_documents', name: 'Collect of Document', color: 'bg-yellow-500' },
+  { id: 'to_be_checked', name: 'To Be Checked', color: 'bg-purple-500' },
+  { id: 'submitted', name: 'Submitted', color: 'bg-orange-500' },
+  { id: 'status', name: 'Status', color: 'bg-cyan-500' },
+  { id: 'approved', name: 'Approved', color: 'bg-emerald-500' },
+  { id: 'declined', name: 'Declined', color: 'bg-destructive' },
 ] as const;
 
 export type PipelineStage = typeof PIPELINE_STAGES[number]['id'];
@@ -224,11 +225,11 @@ export function usePipelineStats() {
 
   if (conversations && conversations.length > 0) {
     const activeConversations = conversations.filter(
-      (c) => c.pipeline_stage !== 'closed_won' && c.pipeline_stage !== 'closed_lost'
+      (c) => c.pipeline_stage !== 'approved' && c.pipeline_stage !== 'declined'
     );
-    const wonConversations = conversations.filter((c) => c.pipeline_stage === 'closed_won');
+    const wonConversations = conversations.filter((c) => c.pipeline_stage === 'approved');
     const closedConversations = conversations.filter(
-      (c) => c.pipeline_stage === 'closed_won' || c.pipeline_stage === 'closed_lost'
+      (c) => c.pipeline_stage === 'approved' || c.pipeline_stage === 'declined'
     );
 
     stats.activeDeals = activeConversations.length;
