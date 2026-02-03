@@ -29,9 +29,44 @@ export async function signUp({ email, password, fullName, organizationName }: Si
   if (authError) throw authError;
   if (!authData.user) throw new Error("Failed to create user");
 
-  // If email confirmation is required, we can't create the organization yet
-  // The organization and profile will be created when the user confirms their email
-  // and signs in for the first time
+  // If email is auto-confirmed, create organization and profile immediately
+  if (authData.session) {
+    try {
+      // Create organization
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .insert({ name: organizationName })
+        .select()
+        .single();
+
+      if (orgError) throw orgError;
+
+      // Create profile linked to organization
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: authData.user.id,
+          email: email,
+          full_name: fullName,
+          organization_id: org.id,
+        });
+
+      if (profileError) throw profileError;
+
+      // Create admin role for the user
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: authData.user.id,
+          role: 'admin',
+        });
+
+      if (roleError) throw roleError;
+    } catch (error) {
+      console.error('Error creating organization/profile:', error);
+      // Don't throw - user is created, they just need manual setup
+    }
+  }
 
   return authData;
 }
