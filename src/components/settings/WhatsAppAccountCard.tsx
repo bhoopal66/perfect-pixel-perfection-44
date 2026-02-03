@@ -119,7 +119,7 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
     setExpiryWarningShown(false);
   }, [account.connection_token]);
 
-  // Countdown timer effect
+  // Countdown timer effect with auto-regeneration
   useEffect(() => {
     // Clear any existing interval
     if (countdownIntervalRef.current) {
@@ -139,10 +139,27 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
       const remaining = expiresAt - now;
 
       if (remaining <= 0) {
-        setCountdown('Expired');
+        setCountdown('Regenerating...');
         if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
         }
+        // Auto-regenerate the code
+        regenerateCode.mutate(account.id, {
+          onSuccess: () => {
+            toast({
+              title: 'Code regenerated',
+              description: 'A new pairing code has been generated.',
+            });
+          },
+          onError: () => {
+            setCountdown('Expired');
+            toast({
+              title: 'Failed to regenerate',
+              description: 'Could not generate a new pairing code. Please try manually.',
+              variant: 'destructive',
+            });
+          },
+        });
         return;
       }
 
@@ -162,7 +179,7 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [showPairingCode, account.connection_token_expires_at, account.is_connected, isTokenExpired]);
+  }, [showPairingCode, account.connection_token_expires_at, account.is_connected, isTokenExpired, account.id, regenerateCode, toast]);
 
   const handleDisconnect = async () => {
     try {
