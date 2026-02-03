@@ -1,68 +1,56 @@
-import { MessageSquare, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+import { ConversationList } from '@/components/conversations/ConversationList';
+import { MessageThread } from '@/components/conversations/MessageThread';
+import { Conversation } from '@/hooks/use-conversations';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 
 export default function Conversations() {
-  return (
-    <div className="h-full flex animate-fade-in">
-      {/* Conversation List */}
-      <div className="w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card">
-        {/* Header */}
-        <div className="p-4 border-b border-border space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Conversations</h2>
-            <Button size="sm" variant="ghost" className="text-primary">
-              All Accounts
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const isMobile = useIsMobile();
+
+  const handleSelectConversation = (conversation: Conversation) => {
+    setSelectedConversation(conversation);
+  };
+
+  const handleBack = () => {
+    setSelectedConversation(null);
+  };
+
+  // Mobile: show either list or thread
+  if (isMobile) {
+    if (selectedConversation) {
+      return (
+        <div className="h-full flex flex-col animate-fade-in">
+          <div className="p-2 border-b border-border">
+            <Button variant="ghost" size="sm" onClick={handleBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
             </Button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search conversations..."
-              className="pl-9 bg-secondary/50 border-0"
-            />
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {['All', 'Unread', 'Assigned to me', 'Unassigned'].map((filter) => (
-              <Button
-                key={filter}
-                size="sm"
-                variant={filter === 'All' ? 'default' : 'outline'}
-                className="flex-shrink-0 text-xs"
-              >
-                {filter}
-              </Button>
-            ))}
-          </div>
+          <MessageThread conversationId={selectedConversation.id} />
         </div>
-
-        {/* Empty State */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-            <MessageSquare className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h3 className="font-medium text-muted-foreground">No conversations yet</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-            Connect a WhatsApp account to start receiving messages
-          </p>
-          <Button size="sm" className="mt-4">
-            Connect Account
-          </Button>
-        </div>
+      );
+    }
+    return (
+      <div className="h-full flex animate-fade-in">
+        <ConversationList
+          selectedId={null}
+          onSelect={handleSelectConversation}
+        />
       </div>
+    );
+  }
 
-      {/* Conversation View (placeholder) */}
-      <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="w-12 h-12 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-medium text-muted-foreground">Select a conversation</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Choose a conversation from the list to start chatting
-          </p>
-        </div>
-      </div>
+  // Desktop: show both
+  return (
+    <div className="h-full flex animate-fade-in">
+      <ConversationList
+        selectedId={selectedConversation?.id || null}
+        onSelect={handleSelectConversation}
+      />
+      <MessageThread conversationId={selectedConversation?.id || null} />
     </div>
   );
 }
