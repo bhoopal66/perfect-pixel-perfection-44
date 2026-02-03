@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Search, X } from 'lucide-react';
+import { Users, Search, X, UserPlus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useContacts, ContactFilter, Contact, useAllTags } from '@/hooks/use-contacts';
 import { ContactCard } from './ContactCard';
+import { CreateContactDialog } from './CreateContactDialog';
 import { cn } from '@/lib/utils';
 
 interface ContactListProps {
@@ -46,14 +47,24 @@ export function ContactList({ selectedId, onSelect }: ContactListProps) {
     <div className="w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card h-full">
       {/* Header */}
       <div className="p-4 border-b border-border space-y-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Contacts</h2>
-          {hasActiveFilters && (
-            <Button size="sm" variant="ghost" onClick={clearFilters} className="text-muted-foreground">
-              <X className="w-4 h-4 mr-1" />
-              Clear
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button size="sm" variant="ghost" onClick={clearFilters} className="text-muted-foreground">
+                <X className="w-4 h-4 mr-1" />
+                Clear
+              </Button>
+            )}
+            <CreateContactDialog
+              trigger={
+                <Button size="sm" variant="outline" className="gap-1.5">
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add</span>
+                </Button>
+              }
+            />
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
