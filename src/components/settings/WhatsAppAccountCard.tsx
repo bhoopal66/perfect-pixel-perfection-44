@@ -9,6 +9,7 @@ import {
   Loader2,
   Copy,
   CheckCircle,
+  Pencil,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import {
   useDeleteWhatsAppAccount,
   useRegeneratePairingCode,
 } from '@/hooks/use-whatsapp-accounts';
+import { EditAccountDialog } from './EditAccountDialog';
 
 interface WhatsAppAccountCardProps {
   account: WhatsAppAccount;
@@ -45,6 +47,7 @@ interface WhatsAppAccountCardProps {
 
 export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPairingCode, setShowPairingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -207,6 +210,12 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit Account
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                
                 {!account.is_connected && (
                   <>
                     <DropdownMenuItem
@@ -284,6 +293,12 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditAccountDialog
+        account={account}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      />
     </>
   );
 }

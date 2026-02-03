@@ -174,6 +174,40 @@ export function useDisconnectAccount() {
   });
 }
 
+// Update an account
+export function useUpdateWhatsAppAccount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      accountId,
+      accountName,
+      displayName,
+    }: {
+      accountId: string;
+      accountName: string;
+      displayName: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from('whatsapp_accounts')
+        .update({
+          account_name: accountName,
+          display_name: displayName,
+        })
+        .eq('id', accountId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as WhatsAppAccount;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['assigned-accounts'] });
+    },
+  });
+}
+
 // Delete an account
 export function useDeleteWhatsAppAccount() {
   const queryClient = useQueryClient();
