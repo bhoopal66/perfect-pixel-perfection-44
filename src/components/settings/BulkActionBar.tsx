@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, ShieldAlert, User, UserX, X } from 'lucide-react';
+import { Shield, ShieldAlert, User, UserX, X, Keyboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,6 +7,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -100,6 +106,27 @@ export function BulkActionBar({
             <UserX className="w-4 h-4 mr-1" />
             Remove
           </Button>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-primary-foreground/70 hover:bg-primary-foreground/20 hover:text-primary-foreground"
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="space-y-1 text-xs">
+                  <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Ctrl+A</kbd> Select all</p>
+                  <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Delete</kbd> Remove selected</p>
+                  <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Esc</kbd> Clear selection</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           <Button
             variant="ghost"
