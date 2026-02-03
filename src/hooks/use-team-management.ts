@@ -334,6 +334,36 @@ export function useReactivateMember() {
   });
 }
 
+export function usePermanentlyDeleteMember() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      // First delete user roles
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      // Then remove organization association and mark as deleted by clearing organization_id
+      const { error } = await supabase
+        .from('profiles')
+        .update({ organization_id: null })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      toast.success('Team member permanently removed from organization');
+    },
+    onError: () => {
+      toast.error('Failed to permanently delete team member');
+    },
+  });
+}
+
 export function generateInviteLink(token: string): string {
   const baseUrl = window.location.origin;
   return `${baseUrl}/signup?invite=${token}`;
