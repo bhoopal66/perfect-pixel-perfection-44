@@ -193,20 +193,92 @@ export function useRemoveMember() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      // Deactivate the profile instead of deleting
+      // Deactivate the profile instead of deleting (keep organization_id for reactivation)
       const { error } = await supabase
         .from('profiles')
-        .update({ is_active: false, organization_id: null })
+        .update({ is_active: false })
         .eq('user_id', userId);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
       toast.success('Team member removed');
     },
     onError: () => {
       toast.error('Failed to remove team member');
+    },
+  });
+}
+
+export function useDeactivatedMembers() {
+  const { organization } = useAuthStore();
+
+  return useQuery({
+    queryKey: ['deactivated-members', organization?.id],
+    queryFn: async () => {
+      if (!organization?.id) return [];
+
+      // Get deactivated profiles in the organization
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .eq('is_active', false);
+
+      if (profilesError) throw profilesError;
+
+      // Get roles for these users
+      const userIds = profiles.map((p) => p.user_id);
+      if (userIds.length === 0) return [];
+
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('*')
+        .in('user_id', userIds);
+
+      if (rolesError) throw rolesError;
+
+      // Combine profiles with roles
+      const members: TeamMember[] = profiles.map((profile) => {
+        const userRole = roles.find((r) => r.user_id === profile.user_id);
+        return {
+          id: profile.id,
+          user_id: profile.user_id,
+          email: profile.email,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          role: userRole?.role || 'agent',
+          is_active: profile.is_active,
+        };
+      });
+
+      return members;
+    },
+    enabled: !!organization?.id,
+  });
+}
+
+export function useReactivateMember() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: true })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      toast.success('Team member reactivated');
+    },
+    onError: () => {
+      toast.error('Failed to reactivate team member');
     },
   });
 }
