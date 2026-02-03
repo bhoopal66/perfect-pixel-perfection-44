@@ -3,6 +3,7 @@ import { Users, UserPlus, UserX, Loader2, Search, CheckSquare, Activity } from '
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useTeamMembers, useTeamInvitations, useDeactivatedMembers } from '@/hooks/use-team-management';
 import { InviteTeamMemberDialog } from './InviteTeamMemberDialog';
 import { AddExistingUserDialog } from './AddExistingUserDialog';
@@ -45,6 +46,16 @@ export function TeamMembersTab() {
     );
   }, [deactivatedMembers, searchQuery]);
 
+  // Selectable members (excluding current user)
+  const selectableMembers = useMemo(() => {
+    return filteredMembers?.filter((m) => m.user_id !== user?.id) || [];
+  }, [filteredMembers, user?.id]);
+
+  const allSelected = selectableMembers.length > 0 && 
+    selectableMembers.every((m) => selectedUserIds.has(m.user_id));
+  
+  const someSelected = selectableMembers.some((m) => selectedUserIds.has(m.user_id));
+
   const handleSelectionChange = useCallback((userId: string, selected: boolean) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
@@ -56,6 +67,14 @@ export function TeamMembersTab() {
       return next;
     });
   }, []);
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedUserIds(new Set(selectableMembers.map((m) => m.user_id)));
+    } else {
+      setSelectedUserIds(new Set());
+    }
+  }, [selectableMembers]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedUserIds(new Set());
@@ -69,9 +88,6 @@ export function TeamMembersTab() {
       setSelectionMode(true);
     }
   };
-
-  // Count selectable members (excluding current user)
-  const selectableCount = filteredMembers?.filter((m) => m.user_id !== user?.id).length || 0;
 
   return (
     <div className="space-y-6">
@@ -139,8 +155,25 @@ export function TeamMembersTab() {
             <Users className="w-4 h-4" />
             Team Members ({filteredMembers?.length || 0})
           </CardTitle>
-          <CardDescription>
-            People with access to your organization
+          <CardDescription className="flex items-center justify-between">
+            <span>People with access to your organization</span>
+            {selectionMode && selectableMembers.length > 0 && (
+              <label className="flex items-center gap-2 cursor-pointer text-foreground">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) {
+                      (el as unknown as HTMLButtonElement).dataset.state = 
+                        someSelected && !allSelected ? 'indeterminate' : allSelected ? 'checked' : 'unchecked';
+                    }
+                  }}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="text-sm font-medium">
+                  Select all ({selectableMembers.length})
+                </span>
+              </label>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
