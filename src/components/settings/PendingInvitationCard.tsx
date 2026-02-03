@@ -39,7 +39,7 @@ export function PendingInvitationCard({ invitation }: PendingInvitationCardProps
   };
 
   const handleCancel = () => {
-    cancelInvitation.mutate(invitation.id);
+    cancelInvitation.mutate({ id: invitation.id, email: invitation.email });
   };
 
   return (

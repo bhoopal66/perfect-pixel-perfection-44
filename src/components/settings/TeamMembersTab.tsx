@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Users, UserPlus, UserX, Loader2, Search, CheckSquare } from 'lucide-react';
+import { Users, UserPlus, UserX, Loader2, Search, CheckSquare, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { TeamMemberCard } from './TeamMemberCard';
 import { PendingInvitationCard } from './PendingInvitationCard';
 import { DeactivatedMemberCard } from './DeactivatedMemberCard';
 import { BulkActionBar } from './BulkActionBar';
+import { ActivityLogList } from './ActivityLogList';
 import { useAuthStore } from '@/stores/authStore';
 
 export function TeamMembersTab() {
@@ -193,6 +194,22 @@ export function TeamMembersTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* Activity Log */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Activity Log
+          </CardTitle>
+          <CardDescription>
+            Recent team management activity
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ActivityLogList />
+        </CardContent>
+      </Card>
 
       {/* Bulk Action Bar */}
       <BulkActionBar

@@ -59,12 +59,21 @@ export function TeamMemberCard({ member, selectionMode, isSelected, onSelectionC
 
   const handleRoleChange = (newRole: AppRole) => {
     if (newRole !== member.role) {
-      updateRole.mutate({ userId: member.user_id, role: newRole });
+      updateRole.mutate({
+        userId: member.user_id,
+        role: newRole,
+        targetEmail: member.email,
+        targetName: member.full_name || undefined,
+      });
     }
   };
 
   const handleRemove = () => {
-    removeMember.mutate(member.user_id);
+    removeMember.mutate({
+      userId: member.user_id,
+      targetEmail: member.email,
+      targetName: member.full_name || undefined,
+    });
     setShowRemoveDialog(false);
   };
 

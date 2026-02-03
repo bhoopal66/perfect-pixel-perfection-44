@@ -44,12 +44,20 @@ export function DeactivatedMemberCard({ member }: DeactivatedMemberCardProps) {
     .toUpperCase() || member.email[0].toUpperCase();
 
   const handleReactivate = () => {
-    reactivateMember.mutate(member.user_id);
+    reactivateMember.mutate({
+      userId: member.user_id,
+      targetEmail: member.email,
+      targetName: member.full_name || undefined,
+    });
     setShowReactivateDialog(false);
   };
 
   const handlePermanentDelete = () => {
-    permanentlyDeleteMember.mutate(member.user_id);
+    permanentlyDeleteMember.mutate({
+      userId: member.user_id,
+      targetEmail: member.email,
+      targetName: member.full_name || undefined,
+    });
     setShowDeleteDialog(false);
   };
 
