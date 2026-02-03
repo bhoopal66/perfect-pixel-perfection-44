@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { formatDistanceToNow, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { formatDistanceToNow, isWithinInterval, startOfDay, endOfDay, format } from 'date-fns';
 import { 
   UserPlus, 
   UserMinus, 
@@ -8,11 +8,13 @@ import {
   Trash2, 
   XCircle,
   Users,
-  Activity
+  Activity,
+  Download
 } from 'lucide-react';
 import { useActivityLogs, type ActivityAction, type ActivityLog } from '@/hooks/use-activity-log';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { ActivityLogFilters, type ActivityLogFiltersState } from './ActivityLogFilters';
 import {
   Pagination,
@@ -23,6 +25,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
+import { toast } from 'sonner';
 // Helper to safely get details as a typed record
 function getDetails(log: ActivityLog): Record<string, string | number | boolean | null> {
   if (typeof log.details === 'object' && log.details !== null && !Array.isArray(log.details)) {
@@ -85,8 +90,43 @@ const ACTION_CONFIG: Record<ActivityAction, {
 
 const PAGE_SIZE = 10;
 
+// Helper to build description for CSV export
+function buildDescription(log: ActivityLog): string {
+  const details = getDetails(log);
+  const targetName = (details.target_name as string) || log.target_email || 'a user';
+  
+  switch (log.action) {
+    case 'member_invited':
+      return `invited ${targetName} as ${details.role || 'agent'}`;
+    case 'invitation_cancelled':
+      return `cancelled invitation for ${targetName}`;
+    case 'member_added':
+      return `added ${targetName} as ${details.role || 'agent'}`;
+    case 'member_removed':
+      return `removed ${targetName}`;
+    case 'member_reactivated':
+      return `reactivated ${targetName}`;
+    case 'member_deleted':
+      return `permanently deleted ${targetName}`;
+    case 'role_changed':
+      return `changed ${targetName}'s role to ${details.new_role || 'unknown'}`;
+    case 'bulk_role_changed': {
+      const count = details.count || 0;
+      return `changed role to ${details.new_role} for ${count} member${Number(count) > 1 ? 's' : ''}`;
+    }
+    case 'bulk_removed': {
+      const removeCount = details.count || 0;
+      return `removed ${removeCount} member${Number(removeCount) > 1 ? 's' : ''}`;
+    }
+    default:
+      return log.action;
+  }
+}
+
 export function ActivityLogList() {
+  const { organization } = useAuthStore();
   const [currentPage, setCurrentPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
   const { data, isLoading } = useActivityLogs(currentPage, PAGE_SIZE);
   const [filters, setFilters] = useState<ActivityLogFiltersState>({
     actionType: 'all',
@@ -130,6 +170,83 @@ export function ActivityLogList() {
     });
   }, [logs, filters]);
 
+  // Export logs to CSV
+  const handleExportCSV = async () => {
+    if (!organization?.id) return;
+    
+    setIsExporting(true);
+    try {
+      // Fetch all logs for export (with filters applied server-side for date range)
+      let query = supabase
+        .from('team_activity_logs')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .order('created_at', { ascending: false });
+
+      if (filters.actionType !== 'all') {
+        query = query.eq('action', filters.actionType);
+      }
+      if (filters.startDate) {
+        query = query.gte('created_at', startOfDay(filters.startDate).toISOString());
+      }
+      if (filters.endDate) {
+        query = query.lte('created_at', endOfDay(filters.endDate).toISOString());
+      }
+
+      const { data: allLogs, error } = await query;
+      if (error) throw error;
+
+      // Get performer details
+      const performerIds = [...new Set(allLogs.map(log => log.performed_by))];
+      const { data: performers } = await supabase
+        .from('profiles')
+        .select('user_id, email, full_name')
+        .in('user_id', performerIds);
+
+      // Build CSV content
+      const headers = ['Date', 'Time', 'Performed By', 'Action', 'Description', 'Target Email'];
+      const rows = allLogs.map(log => {
+        const performer = performers?.find(p => p.user_id === log.performed_by);
+        const performerName = performer?.full_name || performer?.email || 'Unknown';
+        const logWithPerformer = { ...log, performer } as ActivityLog;
+        const description = buildDescription(logWithPerformer);
+        const date = new Date(log.created_at);
+        
+        return [
+          format(date, 'yyyy-MM-dd'),
+          format(date, 'HH:mm:ss'),
+          performerName,
+          ACTION_CONFIG[log.action as ActivityAction]?.label || log.action,
+          description,
+          log.target_email || ''
+        ];
+      });
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `activity-log-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Activity log exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export activity log');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Generate page numbers to display
   const getPageNumbers = () => {
     const pages: (number | 'ellipsis')[] = [];
@@ -160,7 +277,19 @@ export function ActivityLogList() {
 
   return (
     <div>
-      <ActivityLogFilters filters={filters} onFiltersChange={setFilters} />
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <ActivityLogFilters filters={filters} onFiltersChange={setFilters} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCSV}
+          disabled={isExporting || (!logs.length && !isLoading)}
+          className="shrink-0"
+        >
+          <Download className="h-4 w-4 mr-1" />
+          {isExporting ? 'Exporting...' : 'Export CSV'}
+        </Button>
+      </div>
       
       {isLoading ? (
         <div className="space-y-3">
