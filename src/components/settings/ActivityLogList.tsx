@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { formatDistanceToNow, isWithinInterval, startOfDay, endOfDay, format } from 'date-fns';
+import { useState } from 'react';
+import { formatDistanceToNow, startOfDay, endOfDay, format } from 'date-fns';
 import { 
   UserPlus, 
   UserMinus, 
@@ -11,11 +11,11 @@ import {
   Activity,
   Download
 } from 'lucide-react';
-import { useActivityLogs, type ActivityAction, type ActivityLog } from '@/hooks/use-activity-log';
+import { useActivityLogs, type ActivityAction, type ActivityLog, type ActivityLogFilters } from '@/hooks/use-activity-log';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ActivityLogFilters, type ActivityLogFiltersState } from './ActivityLogFilters';
+import { ActivityLogFilters as ActivityLogFiltersComponent, type ActivityLogFiltersState } from './ActivityLogFilters';
 import {
   Pagination,
   PaginationContent,
@@ -127,48 +127,30 @@ export function ActivityLogList() {
   const { organization } = useAuthStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
-  const { data, isLoading } = useActivityLogs(currentPage, PAGE_SIZE);
   const [filters, setFilters] = useState<ActivityLogFiltersState>({
     actionType: 'all',
     startDate: undefined,
     endDate: undefined,
   });
 
+  // Convert UI filter state to API filter format
+  const apiFilters: ActivityLogFilters = {
+    actionType: filters.actionType,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  };
+
+  const { data, isLoading } = useActivityLogs(currentPage, PAGE_SIZE, apiFilters);
+
   const logs = data?.logs || [];
   const totalCount = data?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  // Filter logs based on selected filters (client-side filtering on current page)
-  const filteredLogs = useMemo(() => {
-    if (!logs.length) return [];
-    
-    return logs.filter((log) => {
-      // Filter by action type
-      if (filters.actionType !== 'all' && log.action !== filters.actionType) {
-        return false;
-      }
-      
-      // Filter by date range
-      const logDate = new Date(log.created_at);
-      
-      if (filters.startDate && filters.endDate) {
-        return isWithinInterval(logDate, {
-          start: startOfDay(filters.startDate),
-          end: endOfDay(filters.endDate),
-        });
-      }
-      
-      if (filters.startDate && logDate < startOfDay(filters.startDate)) {
-        return false;
-      }
-      
-      if (filters.endDate && logDate > endOfDay(filters.endDate)) {
-        return false;
-      }
-      
-      return true;
-    });
-  }, [logs, filters]);
+  // Reset to page 1 when filters change
+  const handleFiltersChange = (newFilters: ActivityLogFiltersState) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
 
   // Export logs to CSV
   const handleExportCSV = async () => {
@@ -278,7 +260,7 @@ export function ActivityLogList() {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <ActivityLogFilters filters={filters} onFiltersChange={setFilters} />
+        <ActivityLogFiltersComponent filters={filters} onFiltersChange={handleFiltersChange} />
         <Button
           variant="outline"
           size="sm"
@@ -303,7 +285,7 @@ export function ActivityLogList() {
             </div>
           ))}
         </div>
-      ) : filteredLogs.length === 0 ? (
+      ) : logs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
           <Activity className="h-10 w-10 mb-2 opacity-50" />
           <p className="text-sm">No matching activity found</p>
@@ -313,7 +295,7 @@ export function ActivityLogList() {
         <>
           <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-4">
-              {filteredLogs.map((log) => {
+              {logs.map((log) => {
                 const config = ACTION_CONFIG[log.action as ActivityAction] || {
                   icon: Activity,
                   label: log.action,

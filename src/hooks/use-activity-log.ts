@@ -56,33 +56,74 @@ export async function logActivity(
   }]);
 }
 
-export function useActivityLogs(page = 1, pageSize = 10) {
+export interface ActivityLogFilters {
+  actionType?: ActivityAction | 'all';
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export function useActivityLogs(
+  page = 1, 
+  pageSize = 10,
+  filters: ActivityLogFilters = {}
+) {
   const { organization } = useAuthStore();
 
   return useQuery({
-    queryKey: ['activity-logs', organization?.id, page, pageSize],
+    queryKey: ['activity-logs', organization?.id, page, pageSize, filters.actionType, filters.startDate?.toISOString(), filters.endDate?.toISOString()],
     queryFn: async () => {
       if (!organization?.id) return { logs: [], totalCount: 0 };
 
-      // Get total count for pagination
-      const { count, error: countError } = await supabase
+      // Build base query for count
+      let countQuery = supabase
         .from('team_activity_logs')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', organization.id);
 
+      // Apply filters to count query
+      if (filters.actionType && filters.actionType !== 'all') {
+        countQuery = countQuery.eq('action', filters.actionType);
+      }
+      if (filters.startDate) {
+        const startOfDay = new Date(filters.startDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        countQuery = countQuery.gte('created_at', startOfDay.toISOString());
+      }
+      if (filters.endDate) {
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('created_at', endOfDay.toISOString());
+      }
+
+      const { count, error: countError } = await countQuery;
       if (countError) throw countError;
 
-      // Get paginated logs
+      // Build paginated query with same filters
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      const { data: logs, error } = await supabase
+      let logsQuery = supabase
         .from('team_activity_logs')
         .select('*')
         .eq('organization_id', organization.id)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
 
+      // Apply filters to logs query
+      if (filters.actionType && filters.actionType !== 'all') {
+        logsQuery = logsQuery.eq('action', filters.actionType);
+      }
+      if (filters.startDate) {
+        const startOfDay = new Date(filters.startDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        logsQuery = logsQuery.gte('created_at', startOfDay.toISOString());
+      }
+      if (filters.endDate) {
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        logsQuery = logsQuery.lte('created_at', endOfDay.toISOString());
+      }
+
+      const { data: logs, error } = await logsQuery.range(from, to);
       if (error) throw error;
 
       // Get performer details
