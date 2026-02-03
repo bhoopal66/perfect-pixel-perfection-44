@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Users, UserPlus, UserX, Loader2, Search, CheckSquare, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,8 @@ export function TeamMembersTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   const { data: members, isLoading: membersLoading } = useTeamMembers();
   const { data: invitations, isLoading: invitationsLoading } = useTeamInvitations();
@@ -88,6 +90,42 @@ export function TeamMembersTab() {
       setSelectionMode(true);
     }
   };
+
+  // Keyboard shortcuts for bulk actions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when not typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Ctrl+A or Cmd+A to select all (when in selection mode or to enter it)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        if (!selectionMode && selectableMembers.length > 0) {
+          setSelectionMode(true);
+          setSelectedUserIds(new Set(selectableMembers.map((m) => m.user_id)));
+        } else if (selectionMode) {
+          handleSelectAll(true);
+        }
+      }
+
+      // Delete or Backspace to remove selected members
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedUserIds.size > 0) {
+        e.preventDefault();
+        setShowBulkRemoveDialog(true);
+      }
+
+      // Escape to clear selection
+      if (e.key === 'Escape' && selectionMode) {
+        handleClearSelection();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selectionMode, selectableMembers, selectedUserIds.size, handleSelectAll, handleClearSelection]);
 
   return (
     <div className="space-y-6">
@@ -249,6 +287,8 @@ export function TeamMembersTab() {
         selectedCount={selectedUserIds.size}
         selectedUserIds={Array.from(selectedUserIds)}
         onClearSelection={handleClearSelection}
+        showRemoveDialog={showBulkRemoveDialog}
+        onRemoveDialogChange={setShowBulkRemoveDialog}
       />
     </div>
   );
