@@ -14,6 +14,8 @@ import {
   Menu,
   X,
   MessageCircle,
+  Plus,
+  Check,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/authStore';
+import { useAccountStore } from '@/stores/accountStore';
+import { useWhatsAppAccounts } from '@/hooks/use-whatsapp-accounts';
 import { signOut } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -45,8 +49,13 @@ const navigation = [
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { profile, organization } = useAuthStore();
+  const { selectedAccountId, setSelectedAccountId } = useAccountStore();
+  const { data: accounts, isLoading: accountsLoading } = useWhatsAppAccounts();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const connectedAccounts = accounts?.filter(a => a.is_connected) || [];
+  const selectedAccount = accounts?.find(a => a.id === selectedAccountId);
 
   const handleSignOut = async () => {
     try {
@@ -70,6 +79,21 @@ export default function DashboardLayout() {
     .map((n) => n[0])
     .join('')
     .toUpperCase() || 'U';
+
+  const getAccountDisplayText = () => {
+    if (selectedAccount) {
+      return selectedAccount.account_name;
+    }
+    return 'All Accounts';
+  };
+
+  const getAccountSubtext = () => {
+    if (selectedAccount) {
+      return selectedAccount.phone_number || 'Connected';
+    }
+    const count = connectedAccounts.length;
+    return `${count} connected`;
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -113,25 +137,70 @@ export default function DashboardLayout() {
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
                     <MessageCircle className="w-4 h-4 text-primary" />
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-sidebar-foreground">All Accounts</p>
-                    <p className="text-xs text-sidebar-foreground/60">0 connected</p>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-medium text-sidebar-foreground truncate">
+                      {getAccountDisplayText()}
+                    </p>
+                    <p className="text-xs text-sidebar-foreground/60">
+                      {getAccountSubtext()}
+                    </p>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-sidebar-foreground/60" />
+                  <ChevronDown className="w-4 h-4 text-sidebar-foreground/60 shrink-0" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel>Switch Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-muted" />
-                    <span>No accounts connected</span>
+                
+                {/* All Accounts option */}
+                <DropdownMenuItem onClick={() => setSelectedAccountId(null)}>
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="w-2 h-2 rounded-full bg-primary" />
+                    <span className="flex-1">All Accounts</span>
+                    {!selectedAccountId && <Check className="w-4 h-4 text-primary" />}
                   </div>
                 </DropdownMenuItem>
+                
+                {accounts && accounts.length > 0 ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    {accounts.map((account) => (
+                      <DropdownMenuItem
+                        key={account.id}
+                        onClick={() => setSelectedAccountId(account.id)}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <div
+                            className={cn(
+                              'w-2 h-2 rounded-full',
+                              account.is_connected ? 'bg-primary' : 'bg-muted-foreground/30'
+                            )}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate">{account.account_name}</p>
+                            {account.phone_number && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {account.phone_number}
+                              </p>
+                            )}
+                          </div>
+                          {selectedAccountId === account.id && (
+                            <Check className="w-4 h-4 text-primary shrink-0" />
+                          )}
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                ) : !accountsLoading ? (
+                  <DropdownMenuItem disabled>
+                    <span className="text-muted-foreground">No accounts yet</span>
+                  </DropdownMenuItem>
+                ) : null}
+                
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <span className="text-primary">+ Add WhatsApp Account</span>
+                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
+                  <Plus className="w-4 h-4 mr-2 text-primary" />
+                  <span className="text-primary">Add WhatsApp Account</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

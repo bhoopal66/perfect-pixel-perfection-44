@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, MessageCircle, Bell, Shield, Palette } from 'lucide-react';
+import { User, MessageCircle, Bell } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { WhatsAppAccountsTab } from '@/components/settings/WhatsAppAccountsTab';
 
 export default function Settings() {
   const { profile, organization } = useAuthStore();
@@ -45,28 +46,7 @@ export default function Settings() {
 
           {/* WhatsApp Accounts Tab */}
           <TabsContent value="accounts" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Connected WhatsApp Accounts</CardTitle>
-                <CardDescription>
-                  Manage your WhatsApp Business accounts connected to this CRM
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-border rounded-lg">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                    <MessageCircle className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="font-medium">No accounts connected</h3>
-                  <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                    Install our Chrome extension to connect your first WhatsApp account
-                  </p>
-                  <Button className="mt-4">
-                    Add WhatsApp Account
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <WhatsAppAccountsTab />
           </TabsContent>
 
           {/* Profile Tab */}
