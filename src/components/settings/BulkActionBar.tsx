@@ -34,6 +34,8 @@ interface BulkActionBarProps {
   onClearSelection: () => void;
   showRemoveDialog?: boolean;
   onRemoveDialogChange?: (open: boolean) => void;
+  showRoleDropdown?: boolean;
+  onRoleDropdownChange?: (open: boolean) => void;
 }
 
 export function BulkActionBar({ 
@@ -42,19 +44,29 @@ export function BulkActionBar({
   onClearSelection,
   showRemoveDialog: externalShowRemoveDialog,
   onRemoveDialogChange,
+  showRoleDropdown: externalShowRoleDropdown,
+  onRoleDropdownChange,
 }: BulkActionBarProps) {
   const [internalShowRemoveDialog, setInternalShowRemoveDialog] = useState(false);
+  const [internalShowRoleDropdown, setInternalShowRoleDropdown] = useState(false);
   const bulkUpdateRoles = useBulkUpdateRoles();
   const bulkRemove = useBulkRemoveMembers();
 
   // Support both controlled and uncontrolled dialog state
   const showRemoveDialog = externalShowRemoveDialog ?? internalShowRemoveDialog;
   const setShowRemoveDialog = onRemoveDialogChange ?? setInternalShowRemoveDialog;
+  
+  // Support both controlled and uncontrolled dropdown state
+  const showRoleDropdown = externalShowRoleDropdown ?? internalShowRoleDropdown;
+  const setShowRoleDropdown = onRoleDropdownChange ?? setInternalShowRoleDropdown;
 
   const handleBulkRoleChange = (role: AppRole) => {
     bulkUpdateRoles.mutate(
       { userIds: selectedUserIds, role },
-      { onSuccess: onClearSelection }
+      { onSuccess: () => {
+        onClearSelection();
+        setShowRoleDropdown(false);
+      }}
     );
   };
 
@@ -75,7 +87,7 @@ export function BulkActionBar({
           
           <div className="h-4 w-px bg-primary-foreground/30" />
           
-          <DropdownMenu>
+          <DropdownMenu open={showRoleDropdown} onOpenChange={setShowRoleDropdown}>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="sm">
                 Change Role
@@ -121,6 +133,7 @@ export function BulkActionBar({
               <TooltipContent side="top" className="max-w-xs">
                 <div className="space-y-1 text-xs">
                   <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Ctrl+A</kbd> Select all</p>
+                  <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Ctrl+R</kbd> Change role</p>
                   <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Delete</kbd> Remove selected</p>
                   <p><kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Esc</kbd> Clear selection</p>
                 </div>

@@ -20,6 +20,7 @@ export function TeamMembersTab() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const { data: members, isLoading: membersLoading } = useTeamMembers();
@@ -115,6 +116,12 @@ export function TeamMembersTab() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedUserIds.size > 0) {
         e.preventDefault();
         setShowBulkRemoveDialog(true);
+      }
+
+      // Ctrl+R to open role change dropdown
+      if ((e.ctrlKey || e.metaKey) && e.key === 'r' && selectedUserIds.size > 0) {
+        e.preventDefault();
+        setShowRoleDropdown(true);
       }
 
       // Escape to clear selection
@@ -289,6 +296,8 @@ export function TeamMembersTab() {
         onClearSelection={handleClearSelection}
         showRemoveDialog={showBulkRemoveDialog}
         onRemoveDialogChange={setShowBulkRemoveDialog}
+        showRoleDropdown={showRoleDropdown}
+        onRoleDropdownChange={setShowRoleDropdown}
       />
     </div>
   );
