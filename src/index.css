@@ -2,95 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* WhatsApp CRM Design System
+   Primary: WhatsApp Green (#25D366)
+   Clean, professional, modern interface
 */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* WhatsApp-inspired color palette */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 25% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* WhatsApp Green as primary */
+    --primary: 147 68% 49%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Soft gray secondary */
+    --secondary: 215 20% 95%;
+    --secondary-foreground: 215 25% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 215 20% 94%;
+    --muted-foreground: 215 15% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 147 50% 94%;
+    --accent-foreground: 147 68% 35%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Status colors */
+    --success: 147 68% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 210 100% 50%;
+    --info-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --border: 215 20% 90%;
+    --input: 215 20% 90%;
+    --ring: 147 68% 49%;
 
-    --sidebar-background: 0 0% 98%;
+    --radius: 0.75rem;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Sidebar - darker theme */
+    --sidebar-background: 215 28% 12%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 147 68% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 25% 20%;
+    --sidebar-ring: 147 68% 49%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    /* Chat specific */
+    --chat-incoming: 215 20% 94%;
+    --chat-outgoing: 147 68% 49%;
+    --chat-timestamp: 215 10% 55%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(147 68% 49%), hsl(147 68% 40%));
+    --gradient-hero: linear-gradient(135deg, hsl(147 68% 49%) 0%, hsl(160 60% 45%) 100%);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 215 28% 8%;
+    --foreground: 210 20% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 215 28% 12%;
+    --card-foreground: 210 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 215 28% 12%;
+    --popover-foreground: 210 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 147 68% 49%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 20% 95%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 15% 55%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 147 40% 20%;
+    --accent-foreground: 147 68% 60%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --success: 147 68% 49%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 210 100% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 147 68% 49%;
+
+    --sidebar-background: 215 30% 6%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 147 68% 49%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 215 28% 12%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 25% 15%;
+    --sidebar-ring: 147 68% 49%;
+
+    --chat-incoming: 215 25% 18%;
+    --chat-outgoing: 147 55% 35%;
+    --chat-timestamp: 215 10% 50%;
   }
 }
 
@@ -99,7 +128,63 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer components {
+  /* Status badges */
+  .status-connected {
+    @apply bg-success/10 text-success;
+  }
+
+  .status-disconnected {
+    @apply bg-destructive/10 text-destructive;
+  }
+
+  .status-pending {
+    @apply bg-warning/10 text-warning;
+  }
+
+  /* Message bubbles */
+  .message-incoming {
+    @apply bg-chat-incoming rounded-2xl rounded-tl-sm;
+  }
+
+  .message-outgoing {
+    @apply bg-chat-outgoing text-primary-foreground rounded-2xl rounded-tr-sm;
+  }
+
+  /* Glass effect card */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm;
+  }
+
+  /* Hover card effect */
+  .hover-lift {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
   }
 }
