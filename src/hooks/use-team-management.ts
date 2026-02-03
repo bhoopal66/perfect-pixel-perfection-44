@@ -212,6 +212,57 @@ export function useRemoveMember() {
   });
 }
 
+export function useBulkRemoveMembers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userIds: string[]) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: false })
+        .in('user_id', userIds);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, userIds) => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      queryClient.invalidateQueries({ queryKey: ['deactivated-members'] });
+      toast.success(`${userIds.length} team member${userIds.length > 1 ? 's' : ''} removed`);
+    },
+    onError: () => {
+      toast.error('Failed to remove team members');
+    },
+  });
+}
+
+export function useBulkUpdateRoles() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userIds, role }: { userIds: string[]; role: Enums<'app_role'> }) => {
+      // Delete existing roles for these users
+      await supabase
+        .from('user_roles')
+        .delete()
+        .in('user_id', userIds);
+
+      // Insert new roles
+      const { error } = await supabase
+        .from('user_roles')
+        .insert(userIds.map((userId) => ({ user_id: userId, role })));
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { userIds, role }) => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success(`Updated role to ${role} for ${userIds.length} member${userIds.length > 1 ? 's' : ''}`);
+    },
+    onError: () => {
+      toast.error('Failed to update roles');
+    },
+  });
+}
+
 export function useDeactivatedMembers() {
   const { organization } = useAuthStore();
 
