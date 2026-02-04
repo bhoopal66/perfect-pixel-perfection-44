@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Smartphone } from 'lucide-react';
+import { Loader2, Smartphone, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Dialog,
@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateWhatsAppAccount, useRegeneratePairingCode } from '@/hooks/use-whatsapp-accounts';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AddAccountDialogProps {
   open: boolean;
@@ -21,13 +22,14 @@ interface AddAccountDialogProps {
 }
 
 export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) {
-  const [step, setStep] = useState<'name' | 'pairing'>('name');
+  const [step, setStep] = useState<'name' | 'pairing' | 'success'>('name');
   const [accountName, setAccountName] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState(300);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [connectedPhoneNumber, setConnectedPhoneNumber] = useState<string | null>(null);
   const hasTriggeredRegenRef = useRef(false);
   
   const { toast } = useToast();
@@ -38,6 +40,39 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   useEffect(() => {
     hasTriggeredRegenRef.current = false;
   }, [pairingCode]);
+
+  // Realtime subscription to detect when account connects
+  useEffect(() => {
+    if (!accountId || step !== 'pairing') return;
+
+    const channel = supabase
+      .channel(`whatsapp-account-${accountId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_accounts',
+          filter: `id=eq.${accountId}`,
+        },
+        (payload) => {
+          const newData = payload.new as { is_connected: boolean; phone_number: string | null };
+          if (newData.is_connected) {
+            setConnectedPhoneNumber(newData.phone_number);
+            setStep('success');
+            toast({
+              title: 'WhatsApp Connected!',
+              description: 'Your WhatsApp account has been successfully linked.',
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [accountId, step, toast]);
 
   // Countdown timer for pairing code with auto-regeneration
   useEffect(() => {
@@ -113,6 +148,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     setPairingCode(null);
     setExpiresAt(null);
     setIsRegenerating(false);
+    setConnectedPhoneNumber(null);
     hasTriggeredRegenRef.current = false;
     onOpenChange(false);
   };
@@ -169,7 +205,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               </Button>
             </div>
           </>
-        ) : (
+        ) : step === 'pairing' ? (
           <>
             <DialogHeader>
               <DialogTitle>Connect Your WhatsApp</DialogTitle>
@@ -268,6 +304,40 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
             </div>
             <div className="flex justify-end">
               <Button onClick={handleClose}>Done</Button>
+            </div>
+          </>
+        ) : (
+          // Success step
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-[#25D366]" />
+                Connected Successfully!
+              </DialogTitle>
+              <DialogDescription>
+                Your WhatsApp account has been linked to the CRM.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-6">
+              <div className="flex flex-col items-center justify-center p-6 bg-[#25D366]/10 rounded-lg border border-[#25D366]/20">
+                <div className="w-16 h-16 rounded-full bg-[#25D366] flex items-center justify-center mb-4 animate-scale-in">
+                  <CheckCircle2 className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="font-medium text-lg">{accountName}</h3>
+                {connectedPhoneNumber && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {connectedPhoneNumber}
+                  </p>
+                )}
+                <p className="text-sm text-[#25D366] mt-2 font-medium">
+                  Ready to receive messages
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleClose} className="bg-[#25D366] hover:bg-[#128C7E]">
+                Get Started
+              </Button>
             </div>
           </>
         )}
