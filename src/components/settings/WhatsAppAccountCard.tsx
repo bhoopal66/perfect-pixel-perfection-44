@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   MessageCircle,
   MoreVertical,
@@ -10,7 +11,7 @@ import {
   Copy,
   CheckCircle,
   Pencil,
-  AlertTriangle,
+  Smartphone,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -297,35 +298,83 @@ export function WhatsAppAccountCard({ account }: WhatsAppAccountCardProps) {
                 )}
               </div>
 
-              {/* Show pairing code if not connected and code exists */}
+              {/* Show QR code if not connected and code exists */}
               {!account.is_connected && account.connection_token && !isTokenExpired && showPairingCode && (
-                <div className="mt-3 p-3 bg-secondary/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-muted-foreground">Pairing Code</p>
-                        {countdown && (
-                          <Badge 
-                            variant={countdown === 'Expired' ? 'destructive' : 'secondary'}
-                            className="text-xs font-mono"
-                          >
-                            {countdown === 'Expired' ? 'Expired' : `Expires in ${countdown}`}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-lg font-mono font-bold tracking-wider">
-                        {account.connection_token}
+                <div className="mt-3 p-4 bg-secondary/50 rounded-lg">
+                  <div className="flex flex-col items-center gap-3">
+                    {/* QR Code with pulsing animation */}
+                    <div className="relative">
+                      {/* Pulsing glow animation */}
+                      {countdown !== 'Expired' && countdown !== 'Regenerating...' && (
+                        <div className="absolute -inset-3 rounded-xl bg-[#25D366]/20 animate-[pulse_2s_ease-in-out_infinite]" />
+                      )}
+                      
+                      {/* Outer ring pulse */}
+                      {countdown !== 'Expired' && countdown !== 'Regenerating...' && (
+                        <div className="absolute -inset-1.5 rounded-lg border-2 border-[#25D366]/40 animate-[pulse_1.5s_ease-in-out_infinite]" />
+                      )}
+                      
+                      {countdown === 'Regenerating...' ? (
+                        <div className="w-32 h-32 flex items-center justify-center bg-muted rounded-lg">
+                          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <div 
+                          className="relative bg-white p-2 rounded-lg shadow-md ring-2 ring-[#25D366] animate-[pulse_2s_ease-in-out_infinite]" 
+                          style={{ animationDelay: '0.5s' }}
+                        >
+                          <QRCodeSVG
+                            value={`whatsapp-crm://connect?code=${account.connection_token}&account=${account.id}`}
+                            size={120}
+                            level="M"
+                            includeMargin={false}
+                            fgColor="#128C7E"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Timer badge */}
+                    {countdown && (
+                      <Badge 
+                        variant={countdown === 'Expired' || countdown === 'Regenerating...' ? 'destructive' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {countdown === 'Expired' ? 'Expired' : 
+                         countdown === 'Regenerating...' ? (
+                           <span className="flex items-center gap-1">
+                             <Loader2 className="w-3 h-3 animate-spin" />
+                             Refreshing...
+                           </span>
+                         ) : `Expires in ${countdown}`}
+                      </Badge>
+                    )}
+
+                    {/* Instructions */}
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center">
+                        <Smartphone className="w-3 h-3" />
+                        Scan with WhatsApp to connect
                       </p>
                     </div>
+
+                    {/* Copy code button */}
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={handleCopyCode}
+                      className="text-xs"
                     >
                       {copied ? (
-                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <>
+                          <CheckCircle className="w-3 h-3 mr-1 text-primary" />
+                          Copied!
+                        </>
                       ) : (
-                        <Copy className="w-4 h-4" />
+                        <>
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy code: {account.connection_token}
+                        </>
                       )}
                     </Button>
                   </div>
