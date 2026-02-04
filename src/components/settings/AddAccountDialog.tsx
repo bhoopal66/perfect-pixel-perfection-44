@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Copy, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, Smartphone } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateWhatsAppAccount, useRegeneratePairingCode } from '@/hooks/use-whatsapp-accounts';
 
@@ -25,7 +27,6 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   const [accountId, setAccountId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState(300);
-  const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const hasTriggeredRegenRef = useRef(false);
   
@@ -60,15 +61,15 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
             setTimeLeft(300);
             setIsRegenerating(false);
             toast({
-              title: 'Code regenerated',
-              description: 'A new pairing code has been generated.',
+              title: 'QR Code refreshed',
+              description: 'A new QR code has been generated.',
             });
           },
           onError: () => {
             setIsRegenerating(false);
             toast({
-              title: 'Failed to regenerate',
-              description: 'Could not generate a new pairing code. Please try manually.',
+              title: 'Failed to refresh',
+              description: 'Could not generate a new QR code. Please try again.',
               variant: 'destructive',
             });
           },
@@ -105,25 +106,12 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     }
   };
 
-  const handleCopyCode = () => {
-    if (pairingCode) {
-      navigator.clipboard.writeText(pairingCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: 'Copied!',
-        description: 'Pairing code copied to clipboard.',
-      });
-    }
-  };
-
   const handleClose = () => {
     setStep('name');
     setAccountName('');
     setAccountId(null);
     setPairingCode(null);
     setExpiresAt(null);
-    setCopied(false);
     setIsRegenerating(false);
     hasTriggeredRegenRef.current = false;
     onOpenChange(false);
@@ -134,6 +122,11 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Generate QR code data - this would typically be a deep link or connection URL
+  const qrCodeData = pairingCode 
+    ? `whatsapp-crm://connect?code=${pairingCode}&account=${accountId}`
+    : '';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -181,52 +174,59 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
             <DialogHeader>
               <DialogTitle>Connect Your WhatsApp</DialogTitle>
               <DialogDescription>
-                Enter this pairing code in the Chrome extension to connect your WhatsApp account.
+                Scan this QR code with your WhatsApp mobile app to connect your account.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-4">
-              {/* Pairing Code Display */}
+              {/* QR Code Display */}
               <div className="flex flex-col items-center justify-center p-6 bg-secondary/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">Pairing Code</p>
-                <div className="flex items-center gap-3">
-                  <span className="text-4xl font-mono font-bold tracking-[0.5em] text-primary">
-                    {pairingCode}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleCopyCode}
-                    className="shrink-0"
-                  >
-                    {copied ? (
-                      <CheckCircle className="w-5 h-5 text-primary" />
-                    ) : (
-                      <Copy className="w-5 h-5" />
-                    )}
-                  </Button>
-                </div>
-                <p className={`text-sm mt-3 ${timeLeft < 60 && timeLeft > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                <div className="relative">
                   {isRegenerating ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Regenerating...
-                    </span>
-                  ) : timeLeft > 0 ? (
-                    <>Expires in {formatTime(timeLeft)}</>
+                    <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-lg">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
                   ) : (
-                    <span className="text-destructive">Code expired</span>
+                    <div className="bg-white p-3 rounded-lg">
+                      <QRCodeSVG
+                        value={qrCodeData}
+                        size={180}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
                   )}
-                </p>
+                </div>
+                
+                <div className="mt-4 flex items-center gap-2">
+                  <Badge 
+                    variant={timeLeft < 60 && timeLeft > 0 ? 'destructive' : 'secondary'}
+                    className="text-xs"
+                  >
+                    {isRegenerating ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Refreshing...
+                      </span>
+                    ) : timeLeft > 0 ? (
+                      `Expires in ${formatTime(timeLeft)}`
+                    ) : (
+                      'Expired'
+                    )}
+                  </Badge>
+                </div>
               </div>
 
               {/* Instructions */}
               <div className="space-y-3">
-                <h4 className="text-sm font-medium">Instructions:</h4>
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  How to connect:
+                </h4>
                 <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Install the WhatsApp CRM Chrome Extension</li>
-                  <li>Open WhatsApp Web in your browser</li>
-                  <li>Click the extension icon and enter the pairing code</li>
-                  <li>Your account will connect automatically</li>
+                  <li>Open WhatsApp on your phone</li>
+                  <li>Go to Settings → Linked Devices</li>
+                  <li>Tap "Link a Device"</li>
+                  <li>Point your phone at this QR code to scan</li>
                 </ol>
               </div>
 
@@ -253,8 +253,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                   }}
                   disabled={regenerateCode.isPending}
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Generate New Code
+                  Refresh QR Code
                 </Button>
               )}
             </div>
