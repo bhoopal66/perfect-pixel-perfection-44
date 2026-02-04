@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Copy, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
 import {
   Dialog,
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { useCreateWhatsAppAccount } from '@/hooks/use-whatsapp-accounts';
+import { useCreateWhatsAppAccount, useRegeneratePairingCode } from '@/hooks/use-whatsapp-accounts';
 
 interface AddAccountDialogProps {
   open: boolean;
@@ -22,14 +22,23 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   const [step, setStep] = useState<'name' | 'pairing'>('name');
   const [accountName, setAccountName] = useState('');
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState(300);
   const [copied, setCopied] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const hasTriggeredRegenRef = useRef(false);
   
   const { toast } = useToast();
   const createAccount = useCreateWhatsAppAccount();
+  const regenerateCode = useRegeneratePairingCode();
 
-  // Countdown timer for pairing code
+  // Reset regeneration flag when pairing code changes
+  useEffect(() => {
+    hasTriggeredRegenRef.current = false;
+  }, [pairingCode]);
+
+  // Countdown timer for pairing code with auto-regeneration
   useEffect(() => {
     if (!expiresAt || step !== 'pairing') return;
 
@@ -38,13 +47,37 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
       const diff = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
       setTimeLeft(diff);
 
-      if (diff === 0) {
+      if (diff === 0 && accountId && !hasTriggeredRegenRef.current && !isRegenerating) {
+        hasTriggeredRegenRef.current = true;
         clearInterval(interval);
+        setIsRegenerating(true);
+        
+        // Auto-regenerate the code
+        regenerateCode.mutate(accountId, {
+          onSuccess: (data) => {
+            setPairingCode(data.connection_token);
+            setExpiresAt(new Date(data.connection_token_expires_at!));
+            setTimeLeft(300);
+            setIsRegenerating(false);
+            toast({
+              title: 'Code regenerated',
+              description: 'A new pairing code has been generated.',
+            });
+          },
+          onError: () => {
+            setIsRegenerating(false);
+            toast({
+              title: 'Failed to regenerate',
+              description: 'Could not generate a new pairing code. Please try manually.',
+              variant: 'destructive',
+            });
+          },
+        });
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [expiresAt, step]);
+  }, [expiresAt, step, accountId, isRegenerating, regenerateCode, toast]);
 
   const handleCreateAccount = async () => {
     if (!accountName.trim()) {
@@ -58,6 +91,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
 
     try {
       const account = await createAccount.mutateAsync({ accountName: accountName.trim() });
+      setAccountId(account.id);
       setPairingCode(account.connection_token);
       setExpiresAt(new Date(account.connection_token_expires_at!));
       setTimeLeft(300);
@@ -86,9 +120,12 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   const handleClose = () => {
     setStep('name');
     setAccountName('');
+    setAccountId(null);
     setPairingCode(null);
     setExpiresAt(null);
     setCopied(false);
+    setIsRegenerating(false);
+    hasTriggeredRegenRef.current = false;
     onOpenChange(false);
   };
 
@@ -168,8 +205,13 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                     )}
                   </Button>
                 </div>
-                <p className={`text-sm mt-3 ${timeLeft < 60 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {timeLeft > 0 ? (
+                <p className={`text-sm mt-3 ${timeLeft < 60 && timeLeft > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {isRegenerating ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Regenerating...
+                    </span>
+                  ) : timeLeft > 0 ? (
                     <>Expires in {formatTime(timeLeft)}</>
                   ) : (
                     <span className="text-destructive">Code expired</span>
@@ -188,12 +230,28 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 </ol>
               </div>
 
-              {timeLeft === 0 && (
+              {timeLeft === 0 && !isRegenerating && (
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={handleCreateAccount}
-                  disabled={createAccount.isPending}
+                  onClick={() => {
+                    if (accountId) {
+                      setIsRegenerating(true);
+                      regenerateCode.mutate(accountId, {
+                        onSuccess: (data) => {
+                          setPairingCode(data.connection_token);
+                          setExpiresAt(new Date(data.connection_token_expires_at!));
+                          setTimeLeft(300);
+                          setIsRegenerating(false);
+                          hasTriggeredRegenRef.current = false;
+                        },
+                        onError: () => {
+                          setIsRegenerating(false);
+                        },
+                      });
+                    }
+                  }}
+                  disabled={regenerateCode.isPending}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Generate New Code
