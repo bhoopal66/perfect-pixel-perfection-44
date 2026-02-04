@@ -217,12 +217,14 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               {/* QR Code Display */}
               <div className="flex flex-col items-center justify-center p-6 bg-secondary/50 rounded-lg">
                 <div className="relative">
-                  {/* Pulse rings animation */}
+                  {/* Pulsing glow animation */}
                   {!isRegenerating && timeLeft > 0 && (
-                    <>
-                      <div className="absolute inset-0 -m-3 rounded-xl bg-[#25D366]/20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
-                      <div className="absolute inset-0 -m-2 rounded-xl bg-[#25D366]/10 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]" />
-                    </>
+                    <div className="absolute -inset-4 rounded-2xl bg-[#25D366]/20 animate-[pulse_2s_ease-in-out_infinite]" />
+                  )}
+                  
+                  {/* Outer ring pulse */}
+                  {!isRegenerating && timeLeft > 0 && (
+                    <div className="absolute -inset-2 rounded-xl border-2 border-[#25D366]/40 animate-[pulse_1.5s_ease-in-out_infinite]" />
                   )}
                   
                   {isRegenerating ? (
@@ -230,7 +232,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                       <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
-                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366]/30">
+                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366] animate-[pulse_2s_ease-in-out_infinite]" style={{ animationDelay: '0.5s' }}>
                       <QRCodeSVG
                         value={qrCodeData}
                         size={180}
