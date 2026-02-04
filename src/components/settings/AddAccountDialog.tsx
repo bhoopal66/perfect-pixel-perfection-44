@@ -181,17 +181,26 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               {/* QR Code Display */}
               <div className="flex flex-col items-center justify-center p-6 bg-secondary/50 rounded-lg">
                 <div className="relative">
+                  {/* Pulse rings animation */}
+                  {!isRegenerating && timeLeft > 0 && (
+                    <>
+                      <div className="absolute inset-0 -m-3 rounded-xl bg-[#25D366]/20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
+                      <div className="absolute inset-0 -m-2 rounded-xl bg-[#25D366]/10 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s]" />
+                    </>
+                  )}
+                  
                   {isRegenerating ? (
                     <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-lg">
                       <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
-                    <div className="bg-white p-3 rounded-lg">
+                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366]/30">
                       <QRCodeSVG
                         value={qrCodeData}
                         size={180}
                         level="M"
                         includeMargin={false}
+                        fgColor="#128C7E"
                       />
                     </div>
                   )}
