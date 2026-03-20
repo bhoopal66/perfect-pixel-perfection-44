@@ -272,12 +272,13 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
                   <li>Install the <span className="font-medium text-foreground">Taamul WhatsApp Connector</span> Chrome extension</li>
                   <li>Open the extension and scan this QR code</li>
-                  <li>The extension will link your WhatsApp account automatically</li>
+                  <li>The extension opens a new WhatsApp Web session and displays a WhatsApp QR code</li>
+                  <li>Scan the WhatsApp QR with your phone to link the account</li>
                 </ol>
                 <div className="mt-2 p-3 rounded-md bg-muted/60 border border-border text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">Don't have the extension?</p>
+                  <p className="font-medium text-foreground mb-1">How it works</p>
                   <p>
-                    The Chrome extension is required to connect your WhatsApp account. Contact your administrator for the installation link.
+                    The extension manages separate WhatsApp Web sessions for each account, stored locally in your browser. You can connect multiple WhatsApp numbers — each gets its own isolated session.
                   </p>
                 </div>
               </div>
