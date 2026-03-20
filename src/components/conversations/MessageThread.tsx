@@ -7,10 +7,12 @@ import {
   Phone,
   Video,
   User,
+  UserPlus,
   Check,
   CheckCheck,
   Clock,
   AlertCircle,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   useConversation,
   useMessages,
   useSendMessage,
@@ -33,6 +40,7 @@ import {
   Message,
   Conversation,
 } from '@/hooks/use-conversations';
+import { useTeamMembers, type TeamMember } from '@/hooks/use-team-management';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
