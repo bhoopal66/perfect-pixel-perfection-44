@@ -170,6 +170,31 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
     );
   };
 
+  const handleAssign = (userId: string | null, memberName?: string) => {
+    if (!conversationId) return;
+    updateConversation.mutate(
+      { id: conversationId, assigned_to: userId } as any,
+      {
+        onSuccess: () => {
+          setAssignPopoverOpen(false);
+          setAssignSearch('');
+          toast.success(userId ? `Assigned to ${memberName}` : 'Unassigned');
+        },
+      }
+    );
+  };
+
+  const assignedMember = teamMembers?.find((m) => m.user_id === conversation?.assigned_to);
+
+  const filteredMembers = teamMembers?.filter((m) => {
+    if (!assignSearch) return true;
+    const q = assignSearch.toLowerCase();
+    return (
+      m.full_name?.toLowerCase().includes(q) ||
+      m.email.toLowerCase().includes(q)
+    );
+  });
+
   if (!conversationId) {
     return (
       <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-background">
