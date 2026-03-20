@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Loader2, Smartphone, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, Smartphone, CheckCircle2, RefreshCw, AlertCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Dialog,
@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useCreateWhatsAppAccount, useRegeneratePairingCode } from '@/hooks/use-whatsapp-accounts';
+import { useCreateWhatsAppAccount } from '@/hooks/use-whatsapp-accounts';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AddAccountDialogProps {
@@ -24,22 +24,72 @@ interface AddAccountDialogProps {
 export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) {
   const [step, setStep] = useState<'name' | 'pairing' | 'success'>('name');
   const [accountName, setAccountName] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [qrString, setQrString] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [timeLeft, setTimeLeft] = useState(300);
-  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [connectedPhoneNumber, setConnectedPhoneNumber] = useState<string | null>(null);
-  const hasTriggeredRegenRef = useRef(false);
-  
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const { toast } = useToast();
   const createAccount = useCreateWhatsAppAccount();
-  const regenerateCode = useRegeneratePairingCode();
 
-  // Reset regeneration flag when pairing code changes
+  // Fetch QR code from the backend function
+  const fetchQrCode = useCallback(async () => {
+    setIsLoadingQr(true);
+    setQrError(null);
+
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const params = accountId ? `?accountId=${accountId}` : '';
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/whatsapp-qr${params}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch QR (${response.status})`);
+      }
+
+      const data = await response.json();
+      // Expect { qr: "base64-or-string-data" } from your whatsapp-web.js backend
+      if (data.qr) {
+        setQrString(data.qr);
+        setQrError(null);
+      } else {
+        setQrError('Waiting for QR code from WhatsApp...');
+      }
+    } catch (error: any) {
+      setQrError(error.message || 'Failed to fetch QR code');
+    } finally {
+      setIsLoadingQr(false);
+    }
+  }, [accountId]);
+
+  // Poll for QR code updates when in pairing step
   useEffect(() => {
-    hasTriggeredRegenRef.current = false;
-  }, [pairingCode]);
+    if (step !== 'pairing') return;
+
+    // Initial fetch
+    fetchQrCode();
+
+    // Poll every 5 seconds for new QR codes (they rotate ~every 20s)
+    pollingRef.current = setInterval(fetchQrCode, 5000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [step, fetchQrCode]);
 
   // Realtime subscription to detect when account connects
   useEffect(() => {
@@ -60,6 +110,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           if (newData.is_connected) {
             setConnectedPhoneNumber(newData.phone_number);
             setStep('success');
+            if (pollingRef.current) clearInterval(pollingRef.current);
             toast({
               title: 'WhatsApp Connected!',
               description: 'Your WhatsApp account has been successfully linked.',
@@ -74,47 +125,6 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     };
   }, [accountId, step, toast]);
 
-  // Countdown timer for pairing code with auto-regeneration
-  useEffect(() => {
-    if (!expiresAt || step !== 'pairing') return;
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const diff = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-      setTimeLeft(diff);
-
-      if (diff === 0 && accountId && !hasTriggeredRegenRef.current && !isRegenerating) {
-        hasTriggeredRegenRef.current = true;
-        clearInterval(interval);
-        setIsRegenerating(true);
-        
-        // Auto-regenerate the code
-        regenerateCode.mutate(accountId, {
-          onSuccess: (data) => {
-            setPairingCode(data.connection_token);
-            setExpiresAt(new Date(data.connection_token_expires_at!));
-            setTimeLeft(300);
-            setIsRegenerating(false);
-            toast({
-              title: 'QR Code refreshed',
-              description: 'A new QR code has been generated.',
-            });
-          },
-          onError: () => {
-            setIsRegenerating(false);
-            toast({
-              title: 'Failed to refresh',
-              description: 'Could not generate a new QR code. Please try again.',
-              variant: 'destructive',
-            });
-          },
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [expiresAt, step, accountId, isRegenerating, regenerateCode, toast]);
-
   const handleCreateAccount = async () => {
     if (!accountName.trim()) {
       toast({
@@ -128,9 +138,6 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     try {
       const account = await createAccount.mutateAsync({ accountName: accountName.trim() });
       setAccountId(account.id);
-      setPairingCode(account.connection_token);
-      setExpiresAt(new Date(account.connection_token_expires_at!));
-      setTimeLeft(300);
       setStep('pairing');
     } catch (error: any) {
       toast({
@@ -145,24 +152,13 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     setStep('name');
     setAccountName('');
     setAccountId(null);
-    setPairingCode(null);
-    setExpiresAt(null);
-    setIsRegenerating(false);
+    setQrString(null);
+    setQrError(null);
+    setIsLoadingQr(false);
     setConnectedPhoneNumber(null);
-    hasTriggeredRegenRef.current = false;
+    if (pollingRef.current) clearInterval(pollingRef.current);
     onOpenChange(false);
   };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Generate QR code data - this would typically be a deep link or connection URL
-  const qrCodeData = pairingCode 
-    ? `whatsapp-crm://connect?code=${pairingCode}&account=${accountId}`
-    : '';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -194,7 +190,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateAccount}
                 disabled={createAccount.isPending}
               >
@@ -217,47 +213,44 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               {/* QR Code Display */}
               <div className="flex flex-col items-center justify-center p-6 bg-secondary/50 rounded-lg">
                 <div className="relative">
-                  {/* Pulsing glow animation */}
-                  {!isRegenerating && timeLeft > 0 && (
-                    <div className="absolute -inset-4 rounded-2xl bg-[#25D366]/20 animate-[pulse_2s_ease-in-out_infinite]" />
-                  )}
-                  
-                  {/* Outer ring pulse */}
-                  {!isRegenerating && timeLeft > 0 && (
-                    <div className="absolute -inset-2 rounded-xl border-2 border-[#25D366]/40 animate-[pulse_1.5s_ease-in-out_infinite]" />
-                  )}
-                  
-                  {isRegenerating ? (
+                  {isLoadingQr && !qrString ? (
                     <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-lg">
                       <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
-                  ) : (
-                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366] animate-[pulse_2s_ease-in-out_infinite]" style={{ animationDelay: '0.5s' }}>
-                      <QRCodeSVG
-                        value={qrCodeData}
-                        size={180}
-                        level="M"
-                        includeMargin={false}
-                        fgColor="#128C7E"
-                      />
+                  ) : qrError && !qrString ? (
+                    <div className="w-48 h-48 flex flex-col items-center justify-center bg-muted rounded-lg gap-3 p-4">
+                      <AlertCircle className="w-8 h-8 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground text-center">{qrError}</p>
                     </div>
-                  )}
+                  ) : qrString ? (
+                    <>
+                      {/* Pulsing glow */}
+                      <div className="absolute -inset-4 rounded-2xl bg-[#25D366]/20 animate-[pulse_2s_ease-in-out_infinite]" />
+                      <div className="absolute -inset-2 rounded-xl border-2 border-[#25D366]/40 animate-[pulse_1.5s_ease-in-out_infinite]" />
+                      <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366]">
+                        <QRCodeSVG
+                          value={qrString}
+                          size={180}
+                          level="M"
+                          includeMargin={false}
+                          fgColor="#128C7E"
+                        />
+                      </div>
+                    </>
+                  ) : null}
                 </div>
-                
+
                 <div className="mt-4 flex items-center gap-2">
-                  <Badge 
-                    variant={timeLeft < 60 && timeLeft > 0 ? 'destructive' : 'secondary'}
-                    className="text-xs"
-                  >
-                    {isRegenerating ? (
+                  <Badge variant="secondary" className="text-xs">
+                    {isLoadingQr ? (
                       <span className="flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Refreshing...
+                        Loading...
                       </span>
-                    ) : timeLeft > 0 ? (
-                      `Expires in ${formatTime(timeLeft)}`
+                    ) : qrString ? (
+                      'Scan with WhatsApp'
                     ) : (
-                      'Expired'
+                      'Waiting for QR...'
                     )}
                   </Badge>
                 </div>
@@ -277,30 +270,15 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 </ol>
               </div>
 
-              {timeLeft === 0 && !isRegenerating && (
+              {qrError && (
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => {
-                    if (accountId) {
-                      setIsRegenerating(true);
-                      regenerateCode.mutate(accountId, {
-                        onSuccess: (data) => {
-                          setPairingCode(data.connection_token);
-                          setExpiresAt(new Date(data.connection_token_expires_at!));
-                          setTimeLeft(300);
-                          setIsRegenerating(false);
-                          hasTriggeredRegenRef.current = false;
-                        },
-                        onError: () => {
-                          setIsRegenerating(false);
-                        },
-                      });
-                    }
-                  }}
-                  disabled={regenerateCode.isPending}
+                  onClick={fetchQrCode}
+                  disabled={isLoadingQr}
                 >
-                  Refresh QR Code
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingQr ? 'animate-spin' : ''}`} />
+                  Retry
                 </Button>
               )}
             </div>
