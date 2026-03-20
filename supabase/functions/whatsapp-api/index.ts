@@ -74,8 +74,9 @@ Deno.serve(async (req) => {
     const param = pathParts[2] || "";
 
     const BACKEND = (Deno.env.get("WHATSAPP_BACKEND_URL") || "").replace(/\/+$/, "");
-    if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured" }, 500);
+    if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured. Set it in your backend secrets." }, 500);
 
+    // Validate backend is reachable before proceeding
     console.log(`[wa-proxy] action=${action} param=${param} method=${req.method} backend=${BACKEND}`);
 
     switch (action) {
