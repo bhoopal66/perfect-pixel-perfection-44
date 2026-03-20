@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, MessageCircle, Bell, Users } from 'lucide-react';
+import { User, MessageCircle, Bell, Users, Radio } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useAuthStore } from '@/stores/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WhatsAppAccountsTab } from '@/components/settings/WhatsAppAccountsTab';
+import { WhatsAppSessionsPanel } from '@/components/settings/WhatsAppSessionsPanel';
 import { TeamMembersTab } from '@/components/settings/TeamMembersTab';
 import { useUserRole } from '@/hooks/use-user-role';
 
