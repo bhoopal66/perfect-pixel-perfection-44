@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Loader2, Smartphone, CheckCircle2, ExternalLink } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Dialog,
@@ -280,7 +280,19 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                   How to connect:
                 </h4>
                 <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Install the <span className="font-medium text-foreground">Taamul WhatsApp Connector</span> Chrome extension</li>
+                  <li>
+                    Install the{' '}
+                    <a
+                      href="https://chrome.google.com/webstore/detail/taamul-whatsapp-connector/PLACEHOLDER_EXTENSION_ID"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      Taamul WhatsApp Connector
+                      <ExternalLink className="w-3 h-3" />
+                    </a>{' '}
+                    Chrome extension
+                  </li>
                   <li>Open the extension and scan this QR code</li>
                   <li>The extension opens a new WhatsApp Web session and displays a WhatsApp QR code</li>
                   <li>Scan the WhatsApp QR with your phone to link the account</li>
