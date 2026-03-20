@@ -415,6 +415,233 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_conversations: {
+        Row: {
+          assigned_to: string | null
+          channel: string | null
+          contact_id: string | null
+          contact_name: string | null
+          created_at: string | null
+          id: string
+          last_message: string | null
+          last_message_at: string | null
+          organization_id: string
+          phone: string
+          session_id: string
+          status: string | null
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          channel?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          organization_id: string
+          phone: string
+          session_id: string
+          status?: string | null
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          channel?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          organization_id?: string
+          phone?: string
+          session_id?: string
+          status?: string | null
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_conversations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "wa_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      wa_messages: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          from_me: boolean | null
+          id: string
+          jid: string | null
+          media_url: string | null
+          message_id: string
+          message_type: string | null
+          metadata: Json | null
+          organization_id: string
+          recipient_phone: string | null
+          sender_name: string | null
+          sender_phone: string | null
+          session_id: string
+          status: string | null
+          timestamp: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          from_me?: boolean | null
+          id?: string
+          jid?: string | null
+          media_url?: string | null
+          message_id: string
+          message_type?: string | null
+          metadata?: Json | null
+          organization_id: string
+          recipient_phone?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          session_id: string
+          status?: string | null
+          timestamp: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          from_me?: boolean | null
+          id?: string
+          jid?: string | null
+          media_url?: string | null
+          message_id?: string
+          message_type?: string | null
+          metadata?: Json | null
+          organization_id?: string
+          recipient_phone?: string | null
+          sender_name?: string | null
+          sender_phone?: string | null
+          session_id?: string
+          status?: string | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "wa_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      wa_sessions: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          phone: string | null
+          session_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          phone?: string | null
+          session_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          phone?: string | null
+          session_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_templates: {
+        Row: {
+          body: string
+          category: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          organization_id: string
+          title: string
+        }
+        Insert: {
+          body: string
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          organization_id: string
+          title: string
+        }
+        Update: {
+          body?: string
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          organization_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_accounts: {
         Row: {
           account_name: string
