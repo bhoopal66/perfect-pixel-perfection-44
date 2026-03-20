@@ -19,6 +19,7 @@ import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import QATestRunner from "./pages/QATestRunner";
 
 import NotFound from "./pages/NotFound";
 
