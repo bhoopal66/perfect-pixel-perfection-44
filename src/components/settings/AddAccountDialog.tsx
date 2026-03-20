@@ -244,7 +244,17 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                   )}
                 </div>
                 
-                <div className="mt-4 flex items-center gap-2">
+                {/* Pairing code as plain text */}
+                {pairingCode && !isRegenerating && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Pairing code:</span>
+                    <code className="px-2.5 py-1 rounded-md bg-muted font-mono text-sm font-semibold tracking-widest text-foreground select-all">
+                      {pairingCode}
+                    </code>
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-center gap-2">
                   <Badge 
                     variant={timeLeft < 60 && timeLeft > 0 ? 'destructive' : 'secondary'}
                     className="text-xs"
