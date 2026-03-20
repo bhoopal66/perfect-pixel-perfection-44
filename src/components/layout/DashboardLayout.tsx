@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Plus,
   Check,
+  FlaskConical,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
