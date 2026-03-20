@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send, Paperclip, Smile, MoreVertical, User, UserPlus,
-  Check, CheckCheck, Clock, AlertCircle, X,
+  Check, CheckCheck, Clock, AlertCircle, X, Image, FileText,
+  Mic, Loader2, Download, Play, FileIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -20,6 +21,7 @@ import {
   useMarkWaConversationRead, useUpdateWaConversation, WaMessage, WaConversation,
 } from '@/hooks/use-wa-conversations';
 import { useTeamMembers } from '@/hooks/use-team-management';
+import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -46,14 +48,80 @@ function formatDateHeader(date: Date) {
   return format(date, 'MMMM d, yyyy');
 }
 
+function getMediaCategory(type: string | null, url: string | null): 'image' | 'audio' | 'document' | 'text' {
+  if (!type && !url) return 'text';
+  const t = (type || '').toLowerCase();
+  const u = (url || '').toLowerCase();
+  if (t === 'image' || /\.(jpg|jpeg|png|gif|webp)/.test(u)) return 'image';
+  if (t === 'audio' || t === 'ptt' || /\.(mp3|ogg|wav|m4a|opus)/.test(u)) return 'audio';
+  if (t === 'document' || t === 'video' || /\.(pdf|doc|docx|xls|xlsx|mp4)/.test(u)) return 'document';
+  if (t !== 'text' && t !== '' && url) return 'document';
+  return 'text';
+}
+
+function MediaContent({ message }: { message: WaMessage }) {
+  const category = getMediaCategory(message.message_type, message.media_url);
+  const isOutbound = !!message.from_me;
+
+  if (category === 'image' && message.media_url) {
+    return (
+      <div className="mb-1.5 rounded-lg overflow-hidden">
+        <img
+          src={message.media_url}
+          alt="Shared image"
+          className="max-w-full max-h-64 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+          onClick={() => window.open(message.media_url!, '_blank')}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  if (category === 'audio' && message.media_url) {
+    return (
+      <div className="mb-1.5">
+        <audio controls className="max-w-full h-10" preload="metadata">
+          <source src={message.media_url} />
+        </audio>
+      </div>
+    );
+  }
+
+  if (category === 'document' && message.media_url) {
+    const fileName = message.media_url.split('/').pop()?.split('?')[0] || 'Document';
+    return (
+      <a
+        href={message.media_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          'flex items-center gap-2 mb-1.5 px-3 py-2 rounded-lg transition-colors',
+          isOutbound
+            ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20'
+            : 'bg-background/60 hover:bg-background/80'
+        )}
+      >
+        <FileIcon className="h-5 w-5 flex-shrink-0" />
+        <span className="text-sm truncate flex-1">{decodeURIComponent(fileName)}</span>
+        <Download className="h-4 w-4 flex-shrink-0 opacity-60" />
+      </a>
+    );
+  }
+
+  return null;
+}
+
 function MessageBubble({ message }: { message: WaMessage }) {
   const isOutbound = !!message.from_me;
+  const hasMedia = message.media_url && message.message_type !== 'text';
+
   return (
     <div className={cn('flex', isOutbound ? 'justify-end' : 'justify-start')}>
       <div className={cn(
         'max-w-[70%] rounded-2xl px-4 py-2',
         isOutbound ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted rounded-bl-md'
       )}>
+        {hasMedia && <MediaContent message={message} />}
         {message.body && <p className="text-sm whitespace-pre-wrap break-words">{message.body}</p>}
         <div className={cn('flex items-center gap-1 mt-1', isOutbound ? 'justify-end' : 'justify-start')}>
           <span className={cn('text-xs', isOutbound ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
@@ -66,11 +134,26 @@ function MessageBubble({ message }: { message: WaMessage }) {
   );
 }
 
+interface FilePreview {
+  file: File;
+  previewUrl: string | null;
+  category: 'image' | 'audio' | 'document';
+}
+
+function classifyFile(file: File): FilePreview['category'] {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
 export function WaMessageThread({ conversationId }: WaMessageThreadProps) {
   const [messageInput, setMessageInput] = useState('');
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
   const [assignSearch, setAssignSearch] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<FilePreview[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: conversation, isLoading: loadingConv } = useWaConversation(conversationId);
   const { data: messages, isLoading: loadingMsgs } = useWaMessageList(conversationId);
   const { data: teamMembers } = useTeamMembers();
@@ -87,17 +170,91 @@ export function WaMessageThread({ conversationId }: WaMessageThreadProps) {
       markRead.mutate(conversationId);
   }, [conversationId, conversation?.unread_count]);
 
+  // Cleanup preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      pendingFiles.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+    };
+  }, [pendingFiles]);
+
+  const handleFilesSelected = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const newFiles: FilePreview[] = Array.from(files).slice(0, 5).map((file) => ({
+      file,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      category: classifyFile(file),
+    }));
+    setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 5));
+  }, []);
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles((prev) => {
+      const removed = prev[index];
+      if (removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
+
+  const uploadFile = async (file: File): Promise<string> => {
+    const ext = file.name.split('.').pop() || 'bin';
+    const path = `${conversation!.session_id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from('wa-media')
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (error) throw new Error(`Upload failed: ${error.message}`);
+
+    const { data: urlData } = supabase.storage.from('wa-media').getPublicUrl(path);
+    return urlData.publicUrl;
+  };
+
   const handleSend = async () => {
-    if (!messageInput.trim() || !conversation) return;
+    const hasText = messageInput.trim().length > 0;
+    const hasFiles = pendingFiles.length > 0;
+    if ((!hasText && !hasFiles) || !conversation) return;
+
+    setIsUploading(hasFiles);
+
     try {
-      await sendMessage.mutateAsync({ conversation, text: messageInput.trim() });
+      if (hasFiles) {
+        for (const pf of pendingFiles) {
+          const mediaUrl = await uploadFile(pf.file);
+          await sendMessage.mutateAsync({
+            conversation,
+            text: pendingFiles.length === 1 && hasText ? messageInput.trim() : undefined,
+            mediaUrl,
+            mediaType: pf.category,
+            caption: pendingFiles.length === 1 && hasText ? messageInput.trim() : undefined,
+          });
+        }
+        // If multiple files and text, send text separately
+        if (pendingFiles.length > 1 && hasText) {
+          await sendMessage.mutateAsync({ conversation, text: messageInput.trim() });
+        }
+        pendingFiles.forEach((f) => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+        setPendingFiles([]);
+      } else {
+        await sendMessage.mutateAsync({ conversation, text: messageInput.trim() });
+      }
       setMessageInput('');
-    } catch { toast.error('Failed to send message'); }
+    } catch {
+      toast.error('Failed to send message');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    handleFilesSelected(e.dataTransfer.files);
+  }, [handleFilesSelected]);
 
   const handleStatusChange = (status: string) => {
     if (!conversationId) return;
@@ -167,7 +324,11 @@ export function WaMessageThread({ conversationId }: WaMessageThreadProps) {
   });
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div
+      className="flex-1 flex flex-col bg-background"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+    >
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -278,26 +439,115 @@ export function WaMessageThread({ conversationId }: WaMessageThreadProps) {
         )}
       </ScrollArea>
 
+      {/* File previews */}
+      {pendingFiles.length > 0 && (
+        <div className="px-4 pt-3 border-t border-border">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {pendingFiles.map((pf, i) => (
+              <div key={i} className="relative flex-shrink-0 group">
+                {pf.category === 'image' && pf.previewUrl ? (
+                  <img
+                    src={pf.previewUrl}
+                    alt={pf.file.name}
+                    className="h-16 w-16 rounded-lg object-cover border border-border"
+                  />
+                ) : pf.category === 'audio' ? (
+                  <div className="h-16 w-16 rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-1">
+                    <Mic className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-[9px] text-muted-foreground truncate max-w-[56px]">
+                      {pf.file.name.split('.').pop()?.toUpperCase()}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="h-16 w-16 rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-1">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-[9px] text-muted-foreground truncate max-w-[56px]">
+                      {pf.file.name.split('.').pop()?.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={() => removePendingFile(i)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-muted-foreground flex-shrink-0">
-            <Paperclip className="w-5 h-5" />
-          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.mp4"
+            onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = ''; }}
+          />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground flex-shrink-0">
+                <Paperclip className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-48">
+              <DropdownMenuItem onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = 'image/*';
+                  fileInputRef.current.click();
+                }
+              }}>
+                <Image className="h-4 w-4 mr-2" />
+                Photo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+                  fileInputRef.current.click();
+                }
+              }}>
+                <FileText className="h-4 w-4 mr-2" />
+                Document
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = 'audio/*';
+                  fileInputRef.current.click();
+                }
+              }}>
+                <Mic className="h-4 w-4 mr-2" />
+                Audio
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <div className="flex-1 relative">
             <Input
-              placeholder="Type a message..."
+              placeholder={pendingFiles.length > 0 ? 'Add a caption...' : 'Type a message...'}
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               onKeyPress={handleKeyPress}
+              disabled={isUploading}
               className="pr-10"
             />
             <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground">
               <Smile className="w-5 h-5" />
             </Button>
           </div>
-          <Button size="icon" onClick={handleSend} disabled={!messageInput.trim() || sendMessage.isPending} className="flex-shrink-0">
-            <Send className="w-4 h-4" />
+
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={(!messageInput.trim() && pendingFiles.length === 0) || sendMessage.isPending || isUploading}
+            className="flex-shrink-0"
+          >
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
       </div>
