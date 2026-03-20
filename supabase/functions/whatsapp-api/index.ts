@@ -13,6 +13,27 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Safely fetch from backend — handles non-JSON responses
+async function backendFetch(url: string, options?: RequestInit) {
+  console.log(`[whatsapp-api] Proxying to: ${url}`);
+  const res = await fetch(url, options);
+  const text = await res.text();
+
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[whatsapp-api] Non-JSON response from backend (${res.status}): ${text.slice(0, 200)}`);
+    throw new Error(`Backend returned non-JSON (HTTP ${res.status}). URL: ${url}. Body: ${text.slice(0, 100)}`);
+  }
+
+  if (!res.ok) {
+    console.error(`[whatsapp-api] Backend error ${res.status}:`, data);
+  }
+
+  return { data, status: res.status };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,27 +71,28 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const pathParts = url.pathname.split("/").filter(Boolean);
   // Edge function URL: /whatsapp-api/<action>[/<param>]
-  // pathParts[0] = "whatsapp-api", pathParts[1] = action, pathParts[2] = param
   const action = pathParts[1] || "";
   const param = pathParts[2] || "";
 
-  const BACKEND = Deno.env.get("WHATSAPP_BACKEND_URL")!;
+  const BACKEND = (Deno.env.get("WHATSAPP_BACKEND_URL") || "").replace(/\/+$/, "");
+  
+  if (!BACKEND) {
+    return json({ error: "WHATSAPP_BACKEND_URL not configured" }, 500);
+  }
 
   try {
     switch (action) {
       // ---- Session Management ----
       case "sessions": {
         if (req.method === "POST" && !param) {
-          // Create session: POST /sessions/create
           const body = await req.json();
           const sessionId = body.sessionId || `org_${orgId}_${Date.now()}`;
 
-          const res = await fetch(`${BACKEND}/sessions/create`, {
+          const { data } = await backendFetch(`${BACKEND}/sessions/create`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId, ...body }),
           });
-          const data = await res.json();
 
           // Upsert session in DB
           await supabase.from("wa_sessions").upsert(
@@ -83,24 +105,19 @@ Deno.serve(async (req) => {
             { onConflict: "session_id" }
           );
 
-          return json({ sessionId, ...data });
+          return json({ sessionId, ...(data as object) });
         }
 
         if (req.method === "GET" && param) {
-          // Get session status: GET /sessions/:id/status
-          const res = await fetch(`${BACKEND}/sessions/${param}/status`);
-          const data = await res.json();
+          const { data } = await backendFetch(`${BACKEND}/sessions/${param}/status`);
           return json(data);
         }
 
         if (req.method === "DELETE" && param) {
-          // Delete session: DELETE /sessions/:id
-          const res = await fetch(`${BACKEND}/sessions/${param}`, {
+          const { data } = await backendFetch(`${BACKEND}/sessions/${param}`, {
             method: "DELETE",
           });
-          const data = await res.json();
 
-          // Update DB
           await supabase
             .from("wa_sessions")
             .update({ status: "disconnected" })
@@ -126,9 +143,7 @@ Deno.serve(async (req) => {
       // ---- QR Code ----
       case "qr": {
         if (req.method === "GET" && param) {
-          // GET /sessions/:id/qr
-          const res = await fetch(`${BACKEND}/sessions/${param}/qr`);
-          const data = await res.json();
+          const { data } = await backendFetch(`${BACKEND}/sessions/${param}/qr`);
           return json(data);
         }
         return json({ error: "Session ID required" }, 400);
@@ -138,22 +153,23 @@ Deno.serve(async (req) => {
       case "send": {
         if (req.method === "POST") {
           const body = await req.json();
-          // POST /chats/send
-          const res = await fetch(`${BACKEND}/chats/send`, {
+          const { data } = await backendFetch(`${BACKEND}/chats/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
-          const data = await res.json();
+
+          const respData = data as Record<string, unknown>;
+          const key = respData?.key as Record<string, string> | undefined;
 
           // Store outbound message in wa_messages
-          if (data.key?.id) {
+          if (key?.id) {
             await supabase.from("wa_messages").insert({
-              message_id: data.key.id,
+              message_id: key.id,
               session_id: body.sessionId,
               organization_id: orgId,
               from_me: true,
-              sender_phone: data.key?.participant || null,
+              sender_phone: key?.participant || null,
               recipient_phone: body.to,
               body: body.text || body.caption || null,
               message_type: body.type || "text",
@@ -167,12 +183,10 @@ Deno.serve(async (req) => {
         return json({ error: "POST required" }, 405);
       }
 
-      // ---- Contacts / Chats from backend ----
+      // ---- Chats from backend ----
       case "chats": {
         if (req.method === "GET" && param) {
-          // GET /chats/:sessionId
-          const res = await fetch(`${BACKEND}/chats/${param}`);
-          const data = await res.json();
+          const { data } = await backendFetch(`${BACKEND}/chats/${param}`);
           return json(data);
         }
         return json({ error: "Session ID required" }, 400);
@@ -183,6 +197,6 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error("WhatsApp API proxy error:", err);
-    return json({ error: "Internal server error", details: String(err) }, 500);
+    return json({ error: String(err) }, 502);
   }
 });
