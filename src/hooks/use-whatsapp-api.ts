@@ -19,8 +19,16 @@ async function callApi(path: string, options: RequestInit = {}) {
     },
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'API error');
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Backend returned non-JSON (HTTP ${res.status}). First 200 chars: ${text.slice(0, 200)}`
+    );
+  }
+  if (!res.ok) throw new Error(data.error || `API error (HTTP ${res.status})`);
   return data;
 }
 
