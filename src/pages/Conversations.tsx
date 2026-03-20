@@ -1,24 +1,17 @@
 import { useState } from 'react';
-import { ConversationList } from '@/components/conversations/ConversationList';
-import { MessageThread } from '@/components/conversations/MessageThread';
-import { Conversation } from '@/hooks/use-conversations';
+import { WaConversationList } from '@/components/conversations/WaConversationList';
+import { WaMessageThread } from '@/components/conversations/WaMessageThread';
+import { WaConversation } from '@/hooks/use-wa-conversations';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 export default function Conversations() {
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<WaConversation | null>(null);
   const isMobile = useIsMobile();
 
-  const handleSelectConversation = (conversation: Conversation) => {
-    setSelectedConversation(conversation);
-  };
+  const handleBack = () => setSelectedConversation(null);
 
-  const handleBack = () => {
-    setSelectedConversation(null);
-  };
-
-  // Mobile: show either list or thread
   if (isMobile) {
     if (selectedConversation) {
       return (
@@ -29,28 +22,24 @@ export default function Conversations() {
               Back
             </Button>
           </div>
-          <MessageThread conversationId={selectedConversation.id} />
+          <WaMessageThread conversationId={selectedConversation.id} />
         </div>
       );
     }
     return (
       <div className="h-full flex animate-fade-in">
-        <ConversationList
-          selectedId={null}
-          onSelect={handleSelectConversation}
-        />
+        <WaConversationList selectedId={null} onSelect={setSelectedConversation} />
       </div>
     );
   }
 
-  // Desktop: show both
   return (
     <div className="h-full flex animate-fade-in">
-      <ConversationList
+      <WaConversationList
         selectedId={selectedConversation?.id || null}
-        onSelect={handleSelectConversation}
+        onSelect={setSelectedConversation}
       />
-      <MessageThread conversationId={selectedConversation?.id || null} />
+      <WaMessageThread conversationId={selectedConversation?.id || null} />
     </div>
   );
 }

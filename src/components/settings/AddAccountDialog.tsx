@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Loader2, Smartphone, CheckCircle2, ExternalLink } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useState, useEffect } from 'react';
+import { Loader2, CheckCircle2, Wifi, WifiOff, QrCode } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,8 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useCreateWhatsAppAccount, useRegeneratePairingCode } from '@/hooks/use-whatsapp-accounts';
-import { supabase } from '@/integrations/supabase/client';
+import { useCreateWaSession, useWaQrCode, useWaSessionStatus } from '@/hooks/use-whatsapp-api';
 
 interface AddAccountDialogProps {
   open: boolean;
@@ -22,147 +20,53 @@ interface AddAccountDialogProps {
 }
 
 export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) {
-  const [step, setStep] = useState<'name' | 'pairing' | 'success'>('name');
-  const [accountName, setAccountName] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [timeLeft, setTimeLeft] = useState(300);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [connectedPhoneNumber, setConnectedPhoneNumber] = useState<string | null>(null);
-  const hasTriggeredRegenRef = useRef(false);
-  
+  const [step, setStep] = useState<'name' | 'qr' | 'success'>('name');
+  const [sessionName, setSessionName] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
   const { toast } = useToast();
-  const createAccount = useCreateWhatsAppAccount();
-  const regenerateCode = useRegeneratePairingCode();
+  const createSession = useCreateWaSession();
+  const { data: qrData, isLoading: qrLoading, error: qrError } = useWaQrCode(
+    step === 'qr' ? sessionId : null
+  );
+  const { data: statusData } = useWaSessionStatus(
+    step === 'qr' ? sessionId : null
+  );
 
-  // Reset regeneration flag when pairing code changes
+  // Watch for connected status
   useEffect(() => {
-    hasTriggeredRegenRef.current = false;
-  }, [pairingCode]);
-
-  // Realtime subscription to detect when account connects
-  useEffect(() => {
-    if (!accountId || step !== 'pairing') return;
-
-    const channel = supabase
-      .channel(`whatsapp-account-${accountId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'whatsapp_accounts',
-          filter: `id=eq.${accountId}`,
-        },
-        (payload) => {
-          const newData = payload.new as { is_connected: boolean; phone_number: string | null };
-          if (newData.is_connected) {
-            setConnectedPhoneNumber(newData.phone_number);
-            setStep('success');
-            toast({
-              title: 'WhatsApp Connected!',
-              description: 'Your WhatsApp account has been successfully linked.',
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [accountId, step, toast]);
-
-  // Countdown timer for pairing code with auto-regeneration
-  useEffect(() => {
-    if (!expiresAt || step !== 'pairing') return;
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      const diff = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 1000));
-      setTimeLeft(diff);
-
-      if (diff === 0 && accountId && !hasTriggeredRegenRef.current && !isRegenerating) {
-        hasTriggeredRegenRef.current = true;
-        clearInterval(interval);
-        setIsRegenerating(true);
-        
-        // Auto-regenerate the code
-        regenerateCode.mutate(accountId, {
-          onSuccess: (data) => {
-            setPairingCode(data.connection_token);
-            setExpiresAt(new Date(data.connection_token_expires_at!));
-            setTimeLeft(300);
-            setIsRegenerating(false);
-            toast({
-              title: 'QR Code refreshed',
-              description: 'A new QR code has been generated.',
-            });
-          },
-          onError: () => {
-            setIsRegenerating(false);
-            toast({
-              title: 'Failed to refresh',
-              description: 'Could not generate a new QR code. Please try again.',
-              variant: 'destructive',
-            });
-          },
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [expiresAt, step, accountId, isRegenerating, regenerateCode, toast]);
-
-  const handleCreateAccount = async () => {
-    if (!accountName.trim()) {
+    if (statusData?.status === 'connected' || statusData?.connected) {
+      setStep('success');
       toast({
-        title: 'Error',
-        description: 'Please enter an account name.',
-        variant: 'destructive',
+        title: 'WhatsApp Connected!',
+        description: 'Your session is now active and ready.',
       });
+    }
+  }, [statusData, toast]);
+
+  const handleCreateSession = async () => {
+    if (!sessionName.trim()) {
+      toast({ title: 'Error', description: 'Please enter a session name.', variant: 'destructive' });
       return;
     }
 
     try {
-      const account = await createAccount.mutateAsync({ accountName: accountName.trim() });
-      setAccountId(account.id);
-      setPairingCode(account.connection_token);
-      setExpiresAt(new Date(account.connection_token_expires_at!));
-      setTimeLeft(300);
-      setStep('pairing');
+      const result = await createSession.mutateAsync({ name: sessionName.trim() });
+      setSessionId(result.sessionId);
+      setStep('qr');
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create account.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to create session.', variant: 'destructive' });
     }
   };
 
   const handleClose = () => {
     setStep('name');
-    setAccountName('');
-    setAccountId(null);
-    setPairingCode(null);
-    setExpiresAt(null);
-    setIsRegenerating(false);
-    setConnectedPhoneNumber(null);
-    hasTriggeredRegenRef.current = false;
+    setSessionName('');
+    setSessionId(null);
     onOpenChange(false);
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Generate QR code data - this would typically be a deep link or connection URL
-  const qrCodeData = pairingCode 
-    ? `whatsapp-crm://connect?code=${pairingCode}&account=${accountId}`
-    : '';
+  const qrValue = qrData?.qr || qrData?.qrCode || qrData?.data?.qr || '';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -170,20 +74,20 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
         {step === 'name' ? (
           <>
             <DialogHeader>
-              <DialogTitle>Add WhatsApp Account</DialogTitle>
+              <DialogTitle>Add WhatsApp Session</DialogTitle>
               <DialogDescription>
-                Give your WhatsApp account a name to identify it in the CRM.
+                Create a new WhatsApp session to connect your phone.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="accountName">Account Name</Label>
+                <Label htmlFor="sessionName">Session Name</Label>
                 <Input
-                  id="accountName"
+                  id="sessionName"
                   placeholder="e.g., Sales Line, Support Desk"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateAccount()}
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
                 />
                 <p className="text-xs text-muted-foreground">
                   Choose a name that helps you identify this WhatsApp number.
@@ -191,153 +95,76 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               </div>
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleCreateAccount}
-                disabled={createAccount.isPending}
-              >
-                {createAccount.isPending && (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                )}
+              <Button variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button onClick={handleCreateSession} disabled={createSession.isPending}>
+                {createSession.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Continue
               </Button>
             </div>
           </>
-        ) : step === 'pairing' ? (
+        ) : step === 'qr' ? (
           <>
             <DialogHeader>
-              <DialogTitle>Connect Your WhatsApp</DialogTitle>
+              <DialogTitle>Scan QR Code</DialogTitle>
               <DialogDescription>
-                Scan this QR code with your WhatsApp mobile app to connect your account.
+                Open WhatsApp on your phone → Settings → Linked Devices → Link a Device → Scan this QR.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-4">
-              {/* QR Code Display */}
               <div className="flex flex-col items-center justify-center p-6 bg-secondary/50 rounded-lg">
-                <div className="relative">
-                  {/* Pulsing glow animation */}
-                  {!isRegenerating && timeLeft > 0 && (
-                    <div className="absolute -inset-4 rounded-2xl bg-[#25D366]/20 animate-[pulse_2s_ease-in-out_infinite]" />
-                  )}
-                  
-                  {/* Outer ring pulse */}
-                  {!isRegenerating && timeLeft > 0 && (
-                    <div className="absolute -inset-2 rounded-xl border-2 border-[#25D366]/40 animate-[pulse_1.5s_ease-in-out_infinite]" />
-                  )}
-                  
-                  {isRegenerating ? (
-                    <div className="w-48 h-48 flex items-center justify-center bg-muted rounded-lg">
-                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366] animate-[pulse_2s_ease-in-out_infinite]" style={{ animationDelay: '0.5s' }}>
-                      <QRCodeSVG
-                        value={qrCodeData}
-                        size={180}
-                        level="M"
-                        includeMargin={false}
-                        fgColor="#128C7E"
+                {qrLoading ? (
+                  <div className="w-52 h-52 flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : qrError ? (
+                  <div className="w-52 h-52 flex flex-col items-center justify-center gap-2 text-center">
+                    <WifiOff className="w-8 h-8 text-destructive" />
+                    <p className="text-sm text-destructive">Failed to load QR code</p>
+                    <p className="text-xs text-muted-foreground">The backend may still be starting the session. It will auto-retry.</p>
+                  </div>
+                ) : qrValue ? (
+                  <div className="relative">
+                    <div className="absolute -inset-3 rounded-xl bg-[#25D366]/15 animate-[pulse_2.5s_ease-in-out_infinite]" />
+                    <div className="relative bg-white p-3 rounded-lg shadow-lg ring-2 ring-[#25D366]/60">
+                      <img
+                        src={qrValue.startsWith('data:') ? qrValue : `data:image/png;base64,${qrValue}`}
+                        alt="WhatsApp QR Code"
+                        className="w-48 h-48"
+                        onError={(e) => {
+                          // If it's not an image, try rendering as text QR
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                       />
                     </div>
-                  )}
-                </div>
-                
-                {/* Pairing code as plain text */}
-                {pairingCode && !isRegenerating && (
-                  <div className="mt-4 flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Pairing code:</span>
-                    <code className="px-2.5 py-1 rounded-md bg-muted font-mono text-sm font-semibold tracking-widest text-foreground select-all">
-                      {pairingCode}
-                    </code>
+                  </div>
+                ) : (
+                  <div className="w-52 h-52 flex flex-col items-center justify-center gap-2">
+                    <QrCode className="w-8 h-8 text-muted-foreground animate-pulse" />
+                    <p className="text-sm text-muted-foreground">Waiting for QR code...</p>
                   </div>
                 )}
 
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge 
-                    variant={timeLeft < 60 && timeLeft > 0 ? 'destructive' : 'secondary'}
-                    className="text-xs"
-                  >
-                    {isRegenerating ? (
-                      <span className="flex items-center gap-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Refreshing...
-                      </span>
-                    ) : timeLeft > 0 ? (
-                      `Expires in ${formatTime(timeLeft)}`
-                    ) : (
-                      'Expired'
-                    )}
-                  </Badge>
-                </div>
+                <Badge variant="secondary" className="mt-4 text-xs">
+                  <Wifi className="w-3 h-3 mr-1" />
+                  {qrValue ? 'QR ready — scan with your phone' : 'Connecting to server...'}
+                </Badge>
               </div>
 
-              {/* Instructions */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium flex items-center gap-2">
-                  <Smartphone className="w-4 h-4" />
-                  How to connect:
-                </h4>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>
-                    Install the{' '}
-                    <a
-                      href="https://chrome.google.com/webstore/detail/taamul-whatsapp-connector/PLACEHOLDER_EXTENSION_ID"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      Taamul WhatsApp Connector
-                      <ExternalLink className="w-3 h-3" />
-                    </a>{' '}
-                    Chrome extension
-                  </li>
-                  <li>Open the extension and scan this QR code</li>
-                  <li>The extension opens a new WhatsApp Web session and displays a WhatsApp QR code</li>
-                  <li>Scan the WhatsApp QR with your phone to link the account</li>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">How to connect:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open WhatsApp on your phone</li>
+                  <li>Go to Settings → Linked Devices</li>
+                  <li>Tap "Link a Device"</li>
+                  <li>Point your phone at this QR code</li>
                 </ol>
-                <div className="mt-2 p-3 rounded-md bg-muted/60 border border-border text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">How it works</p>
-                  <p>
-                    The extension manages separate WhatsApp Web sessions for each account, stored locally in your browser. You can connect multiple WhatsApp numbers — each gets its own isolated session.
-                  </p>
-                </div>
               </div>
-
-              {timeLeft === 0 && !isRegenerating && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    if (accountId) {
-                      setIsRegenerating(true);
-                      regenerateCode.mutate(accountId, {
-                        onSuccess: (data) => {
-                          setPairingCode(data.connection_token);
-                          setExpiresAt(new Date(data.connection_token_expires_at!));
-                          setTimeLeft(300);
-                          setIsRegenerating(false);
-                          hasTriggeredRegenRef.current = false;
-                        },
-                        onError: () => {
-                          setIsRegenerating(false);
-                        },
-                      });
-                    }
-                  }}
-                  disabled={regenerateCode.isPending}
-                >
-                  Refresh QR Code
-                </Button>
-              )}
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleClose}>Done</Button>
+              <Button variant="outline" onClick={handleClose}>Cancel</Button>
             </div>
           </>
         ) : (
-          // Success step
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -345,20 +172,15 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 Connected Successfully!
               </DialogTitle>
               <DialogDescription>
-                Your WhatsApp account has been linked to the CRM.
+                Your WhatsApp session is now active and receiving messages.
               </DialogDescription>
             </DialogHeader>
             <div className="py-6">
               <div className="flex flex-col items-center justify-center p-6 bg-[#25D366]/10 rounded-lg border border-[#25D366]/20">
-                <div className="w-16 h-16 rounded-full bg-[#25D366] flex items-center justify-center mb-4 animate-scale-in">
+                <div className="w-16 h-16 rounded-full bg-[#25D366] flex items-center justify-center mb-4">
                   <CheckCircle2 className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="font-medium text-lg">{accountName}</h3>
-                {connectedPhoneNumber && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {connectedPhoneNumber}
-                  </p>
-                )}
+                <h3 className="font-medium text-lg">{sessionName}</h3>
                 <p className="text-sm text-[#25D366] mt-2 font-medium">
                   Ready to receive messages
                 </p>
@@ -366,7 +188,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
             </div>
             <div className="flex justify-end">
               <Button onClick={handleClose} className="bg-[#25D366] hover:bg-[#128C7E]">
-                Get Started
+                Done
               </Button>
             </div>
           </>
