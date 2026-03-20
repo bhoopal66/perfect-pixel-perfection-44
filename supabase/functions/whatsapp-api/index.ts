@@ -173,14 +173,17 @@ Deno.serve(async (req) => {
           const messageId =
             (respData?.key as Record<string, string>)?.id || `out_${Date.now()}`;
 
+          const messageType = rest.type || (rest.mediaUrl ? 'media' : 'text');
+
           await supabase.from("wa_messages").insert({
             message_id: messageId,
             session_id: sessionId,
             organization_id: orgId,
             from_me: true,
             recipient_phone: to,
-            body: text || null,
-            message_type: "text",
+            body: text || rest.caption || null,
+            message_type: messageType,
+            media_url: rest.mediaUrl || null,
             status: "sent",
             timestamp: new Date().toISOString(),
           });

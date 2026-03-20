@@ -152,11 +152,26 @@ export function useSendWaConversationMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ conversation, text }: { conversation: WaConversation; text: string }) => {
+    mutationFn: async ({
+      conversation,
+      text,
+      mediaUrl,
+      mediaType,
+      caption,
+    }: {
+      conversation: WaConversation;
+      text?: string;
+      mediaUrl?: string;
+      mediaType?: string;
+      caption?: string;
+    }) => {
       return sendWa.mutateAsync({
         sessionId: conversation.session_id,
         to: conversation.phone,
-        text,
+        text: text || undefined,
+        mediaUrl,
+        type: mediaType,
+        caption,
       });
     },
     onSuccess: (_, { conversation }) => {
