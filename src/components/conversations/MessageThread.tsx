@@ -115,9 +115,12 @@ function MessageBubble({ message }: { message: Message }) {
 
 export function MessageThread({ conversationId }: MessageThreadProps) {
   const [messageInput, setMessageInput] = useState('');
+  const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: conversation, isLoading: isLoadingConversation } = useConversation(conversationId);
   const { data: messages, isLoading: isLoadingMessages } = useMessages(conversationId);
+  const { data: teamMembers } = useTeamMembers();
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
   const updateConversation = useUpdateConversation();
