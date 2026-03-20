@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Plus,
   Check,
+  FlaskConical,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ const navigation = [
   { name: 'Pipeline', href: '/dashboard/pipeline', icon: Kanban },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'QA Tests', href: '/dashboard/qa-tests', icon: FlaskConical },
 ];
 
 export default function DashboardLayout() {

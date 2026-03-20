@@ -19,6 +19,7 @@ import Contacts from "./pages/Contacts";
 import Pipeline from "./pages/Pipeline";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import QATestRunner from "./pages/QATestRunner";
 
 import NotFound from "./pages/NotFound";
 
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="pipeline" element={<Pipeline />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="qa-tests" element={<QATestRunner />} />
             </Route>
 
             {/* Redirects */}
