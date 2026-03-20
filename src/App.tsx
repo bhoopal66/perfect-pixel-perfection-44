@@ -53,6 +53,7 @@ const App = () => (
               <Route path="pipeline" element={<Pipeline />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="qa-tests" element={<QATestRunner />} />
             </Route>
 
             {/* Redirects */}
