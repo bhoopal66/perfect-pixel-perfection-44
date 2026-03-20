@@ -531,7 +531,7 @@ export default function QATestRunner() {
               <Input
                 value={config.apiKey}
                 onChange={(e) => setConfig((c) => ({ ...c, apiKey: e.target.value }))}
-                placeholder="your_secret_api_key"
+                placeholder="Enter your API key"
                 type="password"
                 disabled={running}
               />
