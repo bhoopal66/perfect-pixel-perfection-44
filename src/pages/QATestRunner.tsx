@@ -44,7 +44,7 @@ interface TestSection {
 }
 
 const DEFAULT_CONFIG = {
-  baseUrl: 'http://localhost:3001',
+  baseUrl: '',
   apiKey: '',
   sessionId: 'test_qa_001',
   testPhone: '971501234567',
@@ -531,7 +531,7 @@ export default function QATestRunner() {
               <Input
                 value={config.apiKey}
                 onChange={(e) => setConfig((c) => ({ ...c, apiKey: e.target.value }))}
-                placeholder="your_secret_api_key"
+                placeholder="Enter your API key"
                 type="password"
                 disabled={running}
               />
