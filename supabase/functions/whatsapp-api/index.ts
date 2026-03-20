@@ -14,16 +14,25 @@ function json(body: unknown, status = 200) {
 }
 
 async function backendFetch(url: string, options?: RequestInit) {
-  console.log(`[whatsapp-api] → ${options?.method || "GET"} ${url}`);
-  const res = await fetch(url, options);
+  console.log(`[wa-proxy] → ${options?.method || "GET"} ${url}`);
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    console.error(`[wa-proxy] Network error fetching ${url}:`, e);
+    throw new Error(`Cannot reach backend at ${url}: ${e}`);
+  }
+
   const text = await res.text();
+  console.log(`[wa-proxy] ← ${res.status} (${text.length} bytes) ${text.slice(0, 200)}`);
 
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    console.error(`[whatsapp-api] Non-JSON (${res.status}): ${text.slice(0, 300)}`);
-    throw new Error(`Backend returned non-JSON (HTTP ${res.status}). Check WHATSAPP_BACKEND_URL and endpoint path.`);
+    throw new Error(
+      `Backend returned non-JSON (HTTP ${res.status}). First 200 chars: ${text.slice(0, 200)}`
+    );
   }
 
   return { data, status: res.status, ok: res.ok };
@@ -34,55 +43,54 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsError } =
-    await supabase.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-  const userId = claimsData.claims.sub as string;
-
-  const { data: orgId } = await supabase.rpc("get_user_organization_id", {
-    _user_id: userId,
-  });
-  if (!orgId) return json({ error: "No organization found" }, 403);
-
-  const url = new URL(req.url);
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  // /whatsapp-api/<action>[/<param>]
-  const action = pathParts[1] || "";
-  const param = pathParts[2] || "";
-
-  const BACKEND = (Deno.env.get("WHATSAPP_BACKEND_URL") || "").replace(/\/+$/, "");
-  if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured" }, 500);
-
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Get user from token
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error("[wa-proxy] Auth error:", userError);
+      return json({ error: "Unauthorized" }, 401);
+    }
+    const userId = user.id;
+
+    const { data: orgId } = await supabase.rpc("get_user_organization_id", {
+      _user_id: userId,
+    });
+    if (!orgId) return json({ error: "No organization found" }, 403);
+
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const action = pathParts[1] || "";
+    const param = pathParts[2] || "";
+
+    const BACKEND = (Deno.env.get("WHATSAPP_BACKEND_URL") || "").replace(/\/+$/, "");
+    if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured" }, 500);
+
+    console.log(`[wa-proxy] action=${action} param=${param} method=${req.method} backend=${BACKEND}`);
+
     switch (action) {
-      // ---- Create session + get QR: POST /api/sessions/:id ----
       case "sessions": {
+        // POST /sessions → create session via POST /api/sessions/:id
         if (req.method === "POST" && !param) {
           const body = await req.json();
           const sessionId = body.sessionId || `org_${orgId}_${Date.now()}`;
 
-          // Your backend: POST /api/sessions/:sessionId
           const { data } = await backendFetch(`${BACKEND}/api/sessions/${sessionId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
 
-          // Upsert session in DB
           await supabase.from("wa_sessions").upsert(
             {
               session_id: sessionId,
@@ -96,19 +104,17 @@ Deno.serve(async (req) => {
           return json({ sessionId, ...(data as object) });
         }
 
-        // Get session status: GET /api/sessions/:id (or /api/sessions/:id/status)
+        // GET /sessions/:id → status
         if (req.method === "GET" && param) {
-          try {
-            const { data } = await backendFetch(`${BACKEND}/api/sessions/${param}/status`);
-            return json(data);
-          } catch {
-            // Fallback: try without /status
-            const { data } = await backendFetch(`${BACKEND}/api/sessions/${param}`);
-            return json(data);
-          }
+          const { data } = await backendFetch(`${BACKEND}/api/sessions/${param}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          return json(data);
         }
 
-        // Delete session
+        // DELETE /sessions/:id
         if (req.method === "DELETE" && param) {
           const { data } = await backendFetch(`${BACKEND}/api/sessions/${param}`, {
             method: "DELETE",
@@ -123,7 +129,7 @@ Deno.serve(async (req) => {
           return json(data);
         }
 
-        // List sessions from DB
+        // GET /sessions → list from DB
         if (req.method === "GET" && !param) {
           const { data: sessions } = await supabase
             .from("wa_sessions")
@@ -136,10 +142,8 @@ Deno.serve(async (req) => {
         return json({ error: "Invalid sessions endpoint" }, 400);
       }
 
-      // ---- QR Code: POST /api/sessions/:id (same as create, returns QR) ----
       case "qr": {
         if (req.method === "GET" && param) {
-          // Re-call the session endpoint to get current QR
           const { data } = await backendFetch(`${BACKEND}/api/sessions/${param}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -150,7 +154,6 @@ Deno.serve(async (req) => {
         return json({ error: "Session ID required" }, 400);
       }
 
-      // ---- Send Message: POST /api/sessions/:id/send ----
       case "send": {
         if (req.method === "POST") {
           const body = await req.json();
@@ -166,10 +169,9 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ to, text, ...rest }),
           });
 
-          // Store outbound message in wa_messages
           const respData = data as Record<string, unknown>;
-          const messageId = (respData?.key as Record<string, string>)?.id || 
-                           `out_${Date.now()}`;
+          const messageId =
+            (respData?.key as Record<string, string>)?.id || `out_${Date.now()}`;
 
           await supabase.from("wa_messages").insert({
             message_id: messageId,
@@ -192,7 +194,7 @@ Deno.serve(async (req) => {
         return json({ error: `Unknown action: ${action}` }, 404);
     }
   } catch (err) {
-    console.error("WhatsApp API proxy error:", err);
+    console.error("[wa-proxy] Error:", err);
     return json({ error: String(err) }, 502);
   }
 });
