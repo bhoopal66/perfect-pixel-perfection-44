@@ -30,6 +30,11 @@ async function backendFetch(url: string, options?: RequestInit) {
   try {
     data = JSON.parse(text);
   } catch {
+    if (text.trimStart().startsWith("<!DOCTYPE") || text.trimStart().startsWith("<html")) {
+      throw new Error(
+        `WhatsApp backend returned an HTML page (HTTP ${res.status}). This usually means the backend server is not running or the URL is wrong. Check WHATSAPP_BACKEND_URL.`
+      );
+    }
     throw new Error(
       `Backend returned non-JSON (HTTP ${res.status}). First 200 chars: ${text.slice(0, 200)}`
     );
