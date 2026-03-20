@@ -7,10 +7,12 @@ import {
   Phone,
   Video,
   User,
+  UserPlus,
   Check,
   CheckCheck,
   Clock,
   AlertCircle,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   useConversation,
   useMessages,
   useSendMessage,
@@ -33,6 +40,7 @@ import {
   Message,
   Conversation,
 } from '@/hooks/use-conversations';
+import { useTeamMembers, type TeamMember } from '@/hooks/use-team-management';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -107,9 +115,12 @@ function MessageBubble({ message }: { message: Message }) {
 
 export function MessageThread({ conversationId }: MessageThreadProps) {
   const [messageInput, setMessageInput] = useState('');
+  const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: conversation, isLoading: isLoadingConversation } = useConversation(conversationId);
   const { data: messages, isLoading: isLoadingMessages } = useMessages(conversationId);
+  const { data: teamMembers } = useTeamMembers();
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
   const updateConversation = useUpdateConversation();
@@ -158,6 +169,31 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
       }
     );
   };
+
+  const handleAssign = (userId: string | null, memberName?: string) => {
+    if (!conversationId) return;
+    updateConversation.mutate(
+      { id: conversationId, assigned_to: userId } as any,
+      {
+        onSuccess: () => {
+          setAssignPopoverOpen(false);
+          setAssignSearch('');
+          toast.success(userId ? `Assigned to ${memberName}` : 'Unassigned');
+        },
+      }
+    );
+  };
+
+  const assignedMember = teamMembers?.find((m) => m.user_id === conversation?.assigned_to);
+
+  const filteredMembers = teamMembers?.filter((m) => {
+    if (!assignSearch) return true;
+    const q = assignSearch.toLowerCase();
+    return (
+      m.full_name?.toLowerCase().includes(q) ||
+      m.email.toLowerCase().includes(q)
+    );
+  });
 
   if (!conversationId) {
     return (
@@ -244,6 +280,80 @@ export function MessageThread({ conversationId }: MessageThreadProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Assign to */}
+          <Popover open={assignPopoverOpen} onOpenChange={(open) => { setAssignPopoverOpen(open); if (!open) setAssignSearch(''); }}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                {assignedMember ? (
+                  <>
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={assignedMember.avatar_url || undefined} />
+                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                        {assignedMember.full_name?.[0]?.toUpperCase() || assignedMember.email[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="max-w-[80px] truncate">{assignedMember.full_name || assignedMember.email}</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Assign
+                  </>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="end">
+              <div className="p-2 border-b border-border">
+                <Input
+                  placeholder="Search team members..."
+                  value={assignSearch}
+                  onChange={(e) => setAssignSearch(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <ScrollArea className="max-h-48">
+                <div className="p-1">
+                  {conversation.assigned_to && (
+                    <button
+                      onClick={() => handleAssign(null)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent text-destructive"
+                    >
+                      <X className="w-4 h-4" />
+                      Unassign
+                    </button>
+                  )}
+                  {filteredMembers?.map((member) => (
+                    <button
+                      key={member.user_id}
+                      onClick={() => handleAssign(member.user_id, member.full_name || member.email)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent transition-colors',
+                        conversation.assigned_to === member.user_id && 'bg-accent'
+                      )}
+                    >
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={member.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                          {member.full_name?.[0]?.toUpperCase() || member.email[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="font-medium truncate">{member.full_name || 'Unnamed'}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      {conversation.assigned_to === member.user_id && (
+                        <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                  {filteredMembers?.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-3">No members found</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+
           <Button variant="ghost" size="icon" className="text-muted-foreground">
             <Phone className="w-4 h-4" />
           </Button>
