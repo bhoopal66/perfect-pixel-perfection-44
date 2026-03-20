@@ -44,7 +44,7 @@ interface TestSection {
 }
 
 const DEFAULT_CONFIG = {
-  baseUrl: 'http://localhost:3001',
+  baseUrl: '',
   apiKey: '',
   sessionId: 'test_qa_001',
   testPhone: '971501234567',
