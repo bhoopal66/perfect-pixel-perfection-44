@@ -69,6 +69,10 @@ export default function Settings() {
             <WhatsAppAccountsTab />
           </TabsContent>
 
+          <TabsContent value="sessions" className="space-y-6">
+            <WhatsAppSessionsPanel />
+          </TabsContent>
+
           {/* Team Tab - Admin only */}
           {isAdmin && (
             <TabsContent value="team" className="space-y-6">
