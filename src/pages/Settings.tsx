@@ -45,6 +45,10 @@ export default function Settings() {
               <MessageCircle className="w-4 h-4" />
               WhatsApp Accounts
             </TabsTrigger>
+            <TabsTrigger value="sessions" className="gap-2">
+              <Radio className="w-4 h-4" />
+              Sessions
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="team" className="gap-2">
                 <Users className="w-4 h-4" />
