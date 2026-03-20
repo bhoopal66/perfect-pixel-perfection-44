@@ -30,6 +30,11 @@ async function backendFetch(url: string, options?: RequestInit) {
   try {
     data = JSON.parse(text);
   } catch {
+    if (text.trimStart().startsWith("<!DOCTYPE") || text.trimStart().startsWith("<html")) {
+      throw new Error(
+        `WhatsApp backend returned an HTML page (HTTP ${res.status}). This usually means the backend server is not running or the URL is wrong. Check WHATSAPP_BACKEND_URL.`
+      );
+    }
     throw new Error(
       `Backend returned non-JSON (HTTP ${res.status}). First 200 chars: ${text.slice(0, 200)}`
     );
@@ -74,8 +79,9 @@ Deno.serve(async (req) => {
     const param = pathParts[2] || "";
 
     const BACKEND = (Deno.env.get("WHATSAPP_BACKEND_URL") || "").replace(/\/+$/, "");
-    if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured" }, 500);
+    if (!BACKEND) return json({ error: "WHATSAPP_BACKEND_URL not configured. Set it in your backend secrets." }, 500);
 
+    // Validate backend is reachable before proceeding
     console.log(`[wa-proxy] action=${action} param=${param} method=${req.method} backend=${BACKEND}`);
 
     switch (action) {
